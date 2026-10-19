@@ -18,6 +18,7 @@ import { Badge, EmptyState, ErrorState, Skeleton, Tabs, TabsContent, TabsList, T
 import { Dialog, DialogContent } from '@/components/ui/overlays'
 import { Select } from '@/components/ui/select'
 import { invalidateLibrary } from '@/features/tracking/api'
+import { useSettings } from '@/features/settings/settings-store'
 import { useDebounced } from '@/features/tracking/hooks'
 import { availableProviders, PROVIDER_LABEL, searchProvider, type SearchProvider } from '@/integrations'
 import { toEnrichmentPayload, type ProviderResult } from '@/integrations/types'
@@ -136,6 +137,7 @@ function ExternalSearch({ category, onAdded, onCustom }: { category: MediaCatego
 }
 
 function ResultRow({ r, category, ownedMediaId, onAdded }: { r: ProviderResult; category: MediaCategory; ownedMediaId?: string; onAdded: () => void }) {
+  const blurAdult = useSettings().blurAdult
   const [confirming, setConfirming] = useState(false)
   const [status, setStatus] = useState<LibraryStatus>('planning')
   // Wishlist is a short "want first" list: never set implicitly, only by the toggle.
@@ -175,7 +177,7 @@ function ResultRow({ r, category, ownedMediaId, onAdded }: { r: ProviderResult; 
   return (
     <li className={cn('rounded-lg border border-line bg-surface-2/50 p-2', confirming && 'border-accent/50')}>
       <div className="flex gap-3">
-        <div className={cn('w-12 shrink-0', r.isAdult && 'blur-sm')}><PosterImage src={r.posterUrl} title={r.title} category={category} className="rounded" /></div>
+        <div className={cn('w-12 shrink-0', r.isAdult && blurAdult && 'blur-sm')}><PosterImage src={r.posterUrl} title={r.title} category={category} className="rounded" /></div>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-1.5">
             <span className="font-semibold">{r.title}</span>

@@ -28,6 +28,7 @@ import { RoutesPanel, SeasonsPanel } from './ProgressPanels'
 import { TrackingPanel, toTracked } from './TrackingPanel'
 import { EditMediaDialog } from './EditMediaDialog'
 import { CoverDrop } from './CoverDrop'
+import { useSettings } from '@/features/settings/settings-store'
 import { invalidateLibrary } from '@/features/tracking/api'
 import { friendlyError } from '@/lib/supabase'
 
@@ -42,6 +43,7 @@ export function MediaDetailPage() {
 
 function Detail({ d }: { d: MediaDetail }) {
   const { media, entry } = d
+  const blurAdult = useSettings().blurAdult
   const cfg = CATEGORY_CONFIG[media.category]
   const navigate = useNavigate()
   const actions = useEntryActions()
@@ -53,7 +55,8 @@ function Detail({ d }: { d: MediaDetail }) {
   const backdrop = backdropSrc(media) ?? posterSrc(media)
   const usingPosterAsBackdrop = !backdropSrc(media)
   const tracked = entry ? toTracked(d) : null
-  const adultBlur = media.details?.is_adult === true
+  // Provider-flagged adult covers are blurred only if the owner enabled it in Settings.
+  const adultBlur = media.details?.is_adult === true && blurAdult
 
   const refresh = async () => {
     setRefreshing(true)
