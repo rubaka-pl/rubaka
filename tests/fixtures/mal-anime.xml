@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+		<!--
+		 Created by XML Export feature at MyAnimeList.net
+		 Version 1.1.0
+		-->
+		<myanimelist>
+			<myinfo>
+				<user_id>1</user_id>
+				<user_name>fixture</user_name>
+				<user_export_type>1</user_export_type>
+				<user_total_anime>6</user_total_anime>
+			</myinfo>
+				<anime>
+					<series_animedb_id>9253</series_animedb_id>
+					<series_title><![CDATA[Steins;Gate]]></series_title>
+					<series_type>TV</series_type>
+					<series_episodes>24</series_episodes>
+					<my_id>0</my_id>
+					<my_watched_episodes>24</my_watched_episodes>
+					<my_start_date>2024-03-12</my_start_date>
+					<my_finish_date>2024-03-15</my_finish_date>
+					<my_score>9</my_score>
+					<my_status>Completed</my_status>
+					<my_comments><![CDATA[Манга > Аниме]]></my_comments>
+					<my_times_watched>2</my_times_watched>
+					<my_tags><![CDATA[]]></my_tags>
+					<my_rewatching>0</my_rewatching>
+					<my_rewatching_ep>0</my_rewatching_ep>
+				</anime>
+				<anime>
+					<series_animedb_id>6408</series_animedb_id>
+					<series_title><![CDATA["Bungaku Shoujo" Movie]]></series_title>
+					<series_type>Movie</series_type>
+					<series_episodes>1</series_episodes>
+					<my_watched_episodes>0</my_watched_episodes>
+					<my_start_date>0000-00-00</my_start_date>
+					<my_finish_date>0000-00-00</my_finish_date>
+					<my_score>0</my_score>
+					<my_status>Plan to Watch</my_status>
+					<my_comments><![CDATA[]]></my_comments>
+					<my_times_watched>0</my_times_watched>
+					<my_rewatching>0</my_rewatching>
+				</anime>
+				<anime>
+					<series_animedb_id>21</series_animedb_id>
+					<series_title><![CDATA[One Piece]]></series_title>
+					<series_type>TV</series_type>
+					<series_episodes>0</series_episodes>
+					<my_watched_episodes>1102</my_watched_episodes>
+					<my_start_date>2019-05-00</my_start_date>
+					<my_finish_date>0000-00-00</my_finish_date>
+					<my_score>0</my_score>
+					<my_status>Watching</my_status>
+					<my_times_watched>0</my_times_watched>
+					<my_rewatching>0</my_rewatching>
+				</anime>
+				<anime>
+					<series_animedb_id>1</series_animedb_id>
+					<series_title><![CDATA[Cowboy Bebop]]></series_title>
+					<series_type>CM</series_type>
+					<series_episodes>26</series_episodes>
+					<my_watched_episodes>30</my_watched_episodes>
+					<my_start_date>0000-00-00</my_start_date>
+					<my_finish_date>0000-00-00</my_finish_date>
+					<my_score>10</my_score>
+					<my_status>Completed</my_status>
+					<my_times_watched>1</my_times_watched>
+					<my_rewatching>1</my_rewatching>
+					<my_rewatching_ep>5</my_rewatching_ep>
+				</anime>
+				<anime>
+					<series_animedb_id></series_animedb_id>
+					<series_title><![CDATA[No Id]]></series_title>
+					<my_status>Completed</my_status>
+				</anime>
+				<anime>
+					<series_animedb_id>5</series_animedb_id>
+					<series_title><![CDATA[Odd Status]]></series_title>
+					<my_status>Rewatching forever</my_status>
+				</anime>
+		</myanimelist>

@@ -1,0 +1,16 @@
+node_modules
+dist
+*.local
+.env
+.env.*
+!.env.example
+coverage
+.DS_Store
+# Personal export files must never be committed
+imports/
+*.csv
+!tests/fixtures/**/*.csv
+supabase/.temp
+supabase/.branches
+# Local CLI session token (scripts/rubaka.ts)
+.rubaka-session.json

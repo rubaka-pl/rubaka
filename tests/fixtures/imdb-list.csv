@@ -1,0 +1,8 @@
+Position,Const,Created,Modified,Description,Title,Original Title,URL,Title Type,IMDb Rating,Runtime (mins),Year,Genres,Num Votes,Release Date,Directors,Your Rating,Date Rated
+1,tt0910970,2018-02-05,2018-02-05,,"WALL·E","WALL·E",https://www.imdb.com/title/tt0910970/,Movie,8.4,98,2008,"Animation, Adventure, Family, Sci-Fi",1346526,2008-06-27,"Andrew Stanton",8,2022-12-19
+2,tt3775202,2018-02-21,2018-02-21,,"I Am a Hero","Ai amu a hîrô",https://www.imdb.com/title/tt3775202/,Movie,6.7,126,2015,"Action, Horror",9039,2016-04-23,"Shinsuke Satô",7,2022-12-19
+3,tt3398228,2026-10-17,2026-10-17,,"BoJack Horseman","BoJack Horseman",https://www.imdb.com/title/tt3398228/,TV Series,8.8,25,2014,"Animation, Comedy, Drama",240362,2014-08-22,,,
+4,tt0903747,2019-01-01,2019-01-01,,"Breaking Bad","Breaking Bad",https://www.imdb.com/title/tt0903747/,TV Series,9.5,49,2008,"Crime, Drama, Thriller",2200000,2008-01-20,,10,2020-01-01
+5,tt0000001,2019-01-01,2019-01-01,,"Some Episode","Some Episode",https://www.imdb.com/title/tt0000001/,TV Episode,7.0,40,2001,"Drama",100,2001,,,
+6,tt0000002,2019-01-01,2019-01-01,,"Partial Date, With Comma","Partial Date, With Comma",https://www.imdb.com/title/tt0000002/,Short,6.0,,1998,"Short",50,1998-11,,1,2020-01-01
+7,,2019-01-01,2019-01-01,,"No Const","No Const",,Movie,6.0,90,1999,"Drama",5,1999-01-01,,,
