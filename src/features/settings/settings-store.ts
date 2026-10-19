@@ -9,7 +9,7 @@ import { z } from 'zod'
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { supabase } from '@/lib/supabase'
-import type { MediaCategory } from '@/types/db'
+import { CATEGORIES, type MediaCategory } from '@/types/db'
 
 const browserTz = (() => {
   try {
@@ -50,6 +50,8 @@ export const settingsSchema = z.object({
   fillProgressOnComplete: z.boolean().catch(true).default(true),
   /** Show the NSFW-flagged covers blurred (provider-reported adult content). */
   blurAdult: z.boolean().catch(true).default(true),
+  /** Categories whose library page hides the Wishlist tab (data is kept). */
+  hiddenWishlistTabs: z.array(z.enum(CATEGORIES)).catch([]).default([]),
 })
 export type Settings = z.infer<typeof settingsSchema>
 export const DEFAULT_SETTINGS: Settings = settingsSchema.parse({})

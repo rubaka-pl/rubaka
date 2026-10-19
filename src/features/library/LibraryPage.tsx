@@ -42,7 +42,12 @@ export function LibraryRoute() {
 function LibraryPage({ cfg }: { cfg: CategoryConfig }) {
   const settings = useSettings()
   const [sp, setSp] = useSearchParams()
-  const f = useMemo(() => readFilters(sp, settings.defaultSort), [sp, settings.defaultSort])
+  const wishlistHidden = settings.hiddenWishlistTabs.includes(cfg.id)
+  const f = useMemo(() => {
+    const r = readFilters(sp, settings.defaultSort)
+    // A hidden Wishlist tab cannot be the active one (e.g. from an old link).
+    return wishlistHidden && r.tab === 'wishlist' ? { ...r, tab: 'all' as Tab } : r
+  }, [sp, settings.defaultSort, wishlistHidden])
   const update = useCallback((patch: Partial<FilterState>) => {
     setSp(writeFilters({ ...f, ...patch }, settings.defaultSort), { replace: true })
   }, [f, setSp, settings.defaultSort])
@@ -144,7 +149,7 @@ function LibraryPage({ cfg }: { cfg: CategoryConfig }) {
   const tabs: { value: Tab; label: string; count?: number }[] = [
     { value: 'all', label: 'All', count: facets.data?.total },
     ...(['in_progress', 'completed', 'on_hold', 'dropped', 'planning'] as LibraryStatus[]).map((s) => ({ value: s as Tab, label: statusLabel(s, cfg.id), count: counts[s] ?? 0 })),
-    { value: 'wishlist', label: 'Wishlist', count: facets.data?.wishlist_count },
+    ...(wishlistHidden ? [] : [{ value: 'wishlist' as Tab, label: 'Wishlist', count: facets.data?.wishlist_count }]),
   ]
   const nFilters = activeFilterCount(f)
   const sortOptions = f.q ? [{ value: 'relevance', label: 'Relevance' }, ...SORT_OPTIONS] : f.tab === 'wishlist' ? [{ value: 'priority_desc', label: 'Wishlist priority' }, ...SORT_OPTIONS] : SORT_OPTIONS
