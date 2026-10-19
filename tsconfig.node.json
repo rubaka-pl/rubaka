@@ -4,6 +4,7 @@
     "target": "ES2023",
     "lib": ["ES2023", "DOM"],
     "module": "ESNext",
+    "jsx": "react-jsx",
     "moduleResolution": "bundler",
     "types": ["node", "vitest/globals", "vite/client"],
     "strict": true,
