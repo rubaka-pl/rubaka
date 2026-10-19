@@ -98,7 +98,8 @@ export function parseImdb(text: string, options: Record<string, string>): ParseR
         format,
         release_year: yearNum && yearNum >= 1800 && yearNum <= 2200 ? yearNum : null,
         release_date: releaseDate,
-        ...(category === 'movie' ? { runtime } : { episode_duration: runtime }),
+        // IMDb's runtime for series is sometimes not a per-episode length (e.g. 1611): ignore implausible values.
+        ...(category === 'movie' ? { runtime } : { episode_duration: runtime && runtime <= 150 ? runtime : null }),
         details: {
           ...(list(v['Directors']).length ? { directors: list(v['Directors']) } : {}),
           ...(Number.isFinite(imdbRating) && imdbRating > 0 ? { imdb_rating: imdbRating } : {}),

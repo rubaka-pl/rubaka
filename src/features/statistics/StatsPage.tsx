@@ -165,8 +165,11 @@ function TimeSpentCard({ category }: { category: 'all' | MediaCategory }) {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 className="text-[13px] font-semibold">Time spent</h2>
-          <div className="mt-1 text-3xl font-bold tabular-nums">{toDays(total).toLocaleString()} <span className="text-base font-medium text-fg-3">days</span></div>
-          <div className="text-xs text-fg-3">{formatDuration(total)} · estimated like MyAnimeList; your own times are used where set</div>
+          {/* Under a day, days would read "0": show hours/minutes as the headline instead. */}
+          <div className="mt-1 text-3xl font-bold tabular-nums">
+            {total >= 1440 ? <>{toDays(total).toLocaleString()} <span className="text-base font-medium text-fg-3">days</span></> : formatDuration(total)}
+          </div>
+          <div className="text-xs text-fg-3">{total >= 1440 ? `${formatDuration(total)} · ` : ''}estimated like MyAnimeList; your own times are used where set</div>
         </div>
       </div>
       {rows.length > 0 && (
@@ -182,13 +185,15 @@ function TimeSpentCard({ category }: { category: 'all' | MediaCategory }) {
                     {formatDuration(Number(r.minutes))}{Number(r.manual) > 0 && ` · ${r.manual} set by you`}{Number(r.missing) > 0 && ` · ${r.missing} without length`}
                   </div>
                 </div>
-                <div className="text-right text-lg font-bold tabular-nums">{toDays(Number(r.minutes))}<span className="ml-0.5 text-[11px] font-normal text-fg-3">d</span></div>
+                <div className="text-right text-lg font-bold tabular-nums">
+                  {Number(r.minutes) >= 1440 ? <>{toDays(Number(r.minutes))}<span className="ml-0.5 text-[11px] font-normal text-fg-3">d</span></> : <span className="text-sm">{formatDuration(Number(r.minutes))}</span>}
+                </div>
               </li>
             )
           })}
         </ul>
       )}
-      {missing > 0 && <p className="mt-3 text-[11px] text-fg-3">{missing} titles have progress but no episode length / runtime yet — “Fetch now” on their category usually fills it.</p>}
+      {missing > 0 && <p className="mt-3 text-[11px] text-fg-3">{missing} {missing === 1 ? 'title has' : 'titles have'} no known length (no data in any database) and are not counted. Open one and set “Time” yourself to include it.</p>}
     </Card>
   )
 }
