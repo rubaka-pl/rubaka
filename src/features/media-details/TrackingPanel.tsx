@@ -1,15 +1,53 @@
-import { Repeat } from 'lucide-react'
+import { Check, Minus, Play, Plus, Repeat, X } from 'lucide-react'
 import { useState } from 'react'
 import { ProgressFields, StatusSelect, type ProgressValues } from '@/components/media/EntryFields'
 import { StarRating } from '@/components/ratings/StarRating'
 import { Button } from '@/components/ui/button'
 import { Field, Input } from '@/components/ui/form-controls'
 import { ProgressBar } from '@/components/ui/misc'
-import { useUpdateEntry, type MediaDetail } from '@/features/tracking/api'
+import { useSessionMutations, useUpdateEntry, type MediaDetail } from '@/features/tracking/api'
 import { useEntryActions, type TrackedItem } from '@/features/tracking/hooks'
 import { CATEGORY_CONFIG, primaryProgress } from '@/lib/categories'
-import { formatDate, formatTimestamp } from '@/lib/dates'
+import { formatDate, formatTimestamp, todayISO } from '@/lib/dates'
 import type { EntryPatch } from '@/types/db'
+
+/**
+ * Start / finish a rewatch, reread or replay right from the tracking panel.
+ * The title stays Completed; each finished session adds one to the count, so
+ * replaying something "on repeat" is just Start → Finish → Start again.
+ */
+function RepeatControls({ d }: { d: MediaDetail }) {
+  const e = d.entry!
+  const cfg = CATEGORY_CONFIG[d.media.category]
+  const { create, update } = useSessionMutations(d.media.id)
+  const active = d.sessions.find((s) => s.status === 'active')
+  const verb = cfg.repeatLabel.toLowerCase()
+  const ing = verb === 'replay' ? 'Replaying' : verb === 'reread' ? 'Rereading' : 'Rewatching'
+  const total = cfg.progress === 'episodes' ? d.media.total_episodes : cfg.progress === 'chapters' ? d.media.total_chapters : null
+  if (active) {
+    return (
+      <div className="flex shrink-0 flex-col gap-1.5">
+        <span className="inline-flex items-center gap-1.5 text-xs font-medium text-accent-hover"><Repeat className="size-3.5" /> {ing} now{active.start_date ? ` · since ${formatDate(active.start_date)}` : ''}</span>
+        <div className="flex gap-1.5">
+          <Button size="sm" variant="primary" loading={update.isPending}
+            onClick={() => update.mutate({ id: active.id, patch: { status: 'completed', end_date: active.end_date ?? todayISO(), ...(total ? { progress: total } : {}) } })}>
+            <Check /> Finish {verb}
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => update.mutate({ id: active.id, patch: { status: 'abandoned', end_date: todayISO() } })}><X /> Stop</Button>
+        </div>
+      </div>
+    )
+  }
+  if (e.status !== 'completed') return null
+  return (
+    <div className="flex shrink-0 flex-col justify-end">
+      <Button size="sm" variant="secondary" loading={create.isPending}
+        onClick={() => create.mutate({ entry_id: e.id, session_type: cfg.sessionType, status: 'active', start_date: todayISO(), progress: 0 })}>
+        <Play /> Start {verb}
+      </Button>
+    </div>
+  )
+}
 
 export function toTracked(d: MediaDetail): TrackedItem {
   const e = d.entry!
@@ -32,7 +70,6 @@ export function TrackingPanel({ d }: { d: MediaDetail }) {
   const tracked = toTracked(d)
   const progress = primaryProgress({ ...e, ...m, category: m.category })
   const save = (patch: EntryPatch) => update.mutate({ entryId: e.id, mediaId: m.id, patch })
-  const activeSession = d.sessions.find((s) => s.status === 'active')
   const [editingProgress, setEditingProgress] = useState(false)
 
   return (
@@ -42,7 +79,6 @@ export function TrackingPanel({ d }: { d: MediaDetail }) {
       </Field>
       <Field label="Status" htmlFor="tp-status" className="shrink-0">
         <StatusSelect id="tp-status" category={m.category} value={e.status} onChange={(s) => actions.setStatus(tracked, s)} className="w-44" />
-        {activeSession && <span className="mt-1 inline-flex items-center gap-1 text-[11px] text-accent-hover"><Repeat className="size-3" /> {cfg.repeatLabel} in progress</span>}
       </Field>
       <div className="flex min-w-[220px] flex-1 basis-[240px] flex-col gap-1.5">
         <span className="text-xs font-medium text-fg-2">Progress</span>
@@ -74,9 +110,17 @@ export function TrackingPanel({ d }: { d: MediaDetail }) {
       </Field>
       <div className="flex shrink-0 flex-col gap-1.5 text-[13px]">
         <span className="text-xs font-medium text-fg-2">{cfg.repeatLabel === 'Rewatch' ? 'Rewatches' : `${cfg.repeatLabel}s`}</span>
-        <span className="tabular-nums">{e.repeat_count}{e.imported_repeat_count > 0 && <span className="text-[11px] text-fg-3"> ({e.imported_repeat_count} undated)</span>}</span>
+        {/* − / + change the undated repeat count; dated sessions live in the History tab. */}
+        <div className="flex items-center gap-1.5">
+          <Button size="icon-sm" variant="outline" aria-label={`One ${cfg.repeatLabel.toLowerCase()} less`} disabled={e.imported_repeat_count <= 0}
+            onClick={() => save({ imported_repeat_count: e.imported_repeat_count - 1 })}><Minus /></Button>
+          <span className="w-7 text-center text-[15px] font-semibold tabular-nums" aria-live="polite">{e.repeat_count}</span>
+          <Button size="icon-sm" variant="outline" aria-label={`One ${cfg.repeatLabel.toLowerCase()} more`}
+            onClick={() => save({ imported_repeat_count: e.imported_repeat_count + 1 })}><Plus /></Button>
+        </div>
         <span className="text-[11px] text-fg-3">Last activity {formatTimestamp(e.last_activity_at)}</span>
       </div>
+      <RepeatControls d={d} />
       {editingProgress && (
         <div className="basis-full">
           <ProgressFields

@@ -78,7 +78,7 @@ export const CATEGORY_CONFIG: Record<MediaCategory, CategoryConfig> = {
   },
   visual_novel: {
     id: 'visual_novel', slug: 'visual-novels', label: 'Visual Novels', singular: 'Visual Novel', icon: MonitorPlay,
-    progress: 'routes', volumes: false, seasons: false, sessionType: 'replay',
+    progress: 'none', volumes: false, seasons: false, sessionType: 'replay',
     activeLabel: 'Playing', completedLabel: 'Completed', planningLabel: 'Plan to Play', repeatLabel: 'Replay',
     formats: [
       { value: 'visual_novel', label: 'Visual Novel' }, { value: 'kinetic_novel', label: 'Kinetic Novel' },
