@@ -1,0 +1,8 @@
+# Used by the Supabase CLI (`npx supabase functions deploy`). Dashboard deploys:
+# turn "Verify JWT" off for monthly-backup in the function's settings.
+[functions.metadata-proxy]
+verify_jwt = true
+
+[functions.monthly-backup]
+# The function checks access itself: the schedule's x-backup-secret header or the owner's session.
+verify_jwt = false

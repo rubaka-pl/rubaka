@@ -9,7 +9,7 @@
 // working: restore_rows() maps columns by name from the live schema, and
 // newer-than-supported versions are rejected.
 import { z } from 'zod'
-import { supabase, unwrap } from '@/lib/supabase'
+import { assetUrl, supabase, unwrap } from '@/lib/supabase'
 import { chunk } from '@/lib/utils'
 import type { MediaCategory } from '@/types/db'
 
@@ -29,8 +29,12 @@ export interface Backup {
   app: 'RUBAKA'
   exported_at: string
   scope: 'full' | MediaCategory
+  /** Categories included (absent = all). */
+  categories?: MediaCategory[]
   counts: Record<string, number>
   tables: Partial<Record<Table, Record<string, unknown>[]>> & { media_genres?: { media_id: string; genre: string }[] }
+  /** Readable copy of the library (not used for restore). */
+  library?: ReturnType<typeof buildLibrary>
 }
 
 export const backupSchema = z.object({
@@ -68,16 +72,28 @@ async function fetchAll(table: string, order: string, filter?: { column: string;
   return out
 }
 
-/** Build a backup (full, or one category with everything that hangs off it). */
-export async function exportBackup(scope: 'full' | MediaCategory, onProgress?: (msg: string) => void): Promise<Backup> {
+/**
+ * Build a backup: everything, or only some categories (with everything that
+ * hangs off them). `includeHistory` adds the activity log and settings.
+ * Besides the restorable `tables`, the file carries `library`: one readable
+ * record per title (status, rating, progress, repeats, dates, time, cover
+ * URLs, genres, ids, notes, sessions) so the backup is usable on its own.
+ */
+export async function exportBackup(
+  scope: 'full' | MediaCategory | MediaCategory[],
+  onProgress?: (msg: string) => void,
+  opts: { includeHistory?: boolean } = {},
+): Promise<Backup> {
+  const cats = scope === 'full' ? null : Array.isArray(scope) ? scope : [scope]
+  const partial = cats != null && cats.length < 8
   const tables: Backup['tables'] = {}
   onProgress?.('media')
-  const media = scope === 'full'
+  const media = !partial
     ? await fetchAll('media', 'id')
-    : (await fetchAll('media', 'id')).filter((m) => m.category === scope)
+    : (await fetchAll('media', 'id')).filter((m) => cats!.includes(m.category as MediaCategory))
   tables.media = media
   const mediaIds = media.map((m) => m.id as string)
-  const byMedia = scope === 'full' ? undefined : { column: 'media_id', values: mediaIds }
+  const byMedia = !partial ? undefined : { column: 'media_id', values: mediaIds }
 
   for (const t of ['media_titles', 'media_external_ids', 'media_seasons', 'media_relations', 'library_entries'] as const) {
     onProgress?.(t)
@@ -94,18 +110,62 @@ export async function exportBackup(scope: 'full' | MediaCategory, onProgress?: (
   tables.media_genres = genreRows.filter((g) => g.genres && idSet.has(g.media_id)).map((g) => ({ media_id: g.media_id, genre: g.genres!.name }))
 
   const entryIds = (tables.library_entries ?? []).map((e) => e.id as string)
-  const byEntry = scope === 'full' ? undefined : { column: 'entry_id', values: entryIds }
+  const byEntry = !partial ? undefined : { column: 'entry_id', values: entryIds }
   for (const t of ['entry_season_progress', 'tracking_sessions', 'vn_routes'] as const) {
     onProgress?.(t)
     tables[t] = await fetchAll(t, t === 'entry_season_progress' ? 'entry_id' : 'id', byEntry)
   }
-  if (scope === 'full') {
+  if (opts.includeHistory ?? !partial) {
     onProgress?.('activity')
     tables.activity_log = await fetchAll('activity_log', 'id')
     tables.user_settings = await fetchAll('user_settings', 'user_id')
   }
   const counts = Object.fromEntries(Object.entries(tables).map(([k, v]) => [k, (v as unknown[]).length]))
-  return { format: BACKUP_FORMAT, version: BACKUP_VERSION, app: 'RUBAKA', exported_at: new Date().toISOString(), scope, counts, tables }
+  return {
+    format: BACKUP_FORMAT, version: BACKUP_VERSION, app: 'RUBAKA', exported_at: new Date().toISOString(),
+    scope: !partial ? 'full' : cats!.length === 1 ? cats![0] : 'full',
+    categories: cats ?? undefined,
+    counts, tables,
+    library: buildLibrary(tables),
+  }
+}
+
+/** Human-readable, self-contained view of the library (one record per title). */
+export function buildLibrary(t: Backup['tables']) {
+  const entries = new Map((t.library_entries ?? []).map((e) => [e.media_id as string, e]))
+  const group = <T extends Record<string, unknown>>(rows: T[] | undefined, key: string) => {
+    const m = new Map<string, T[]>()
+    for (const r of rows ?? []) m.set(r[key] as string, [...(m.get(r[key] as string) ?? []), r])
+    return m
+  }
+  const titles = group(t.media_titles, 'media_id')
+  const ids = group(t.media_external_ids, 'media_id')
+  const genres = group(t.media_genres as Record<string, unknown>[] | undefined, 'media_id')
+  const sessions = group(t.tracking_sessions, 'entry_id')
+  const seasons = group(t.entry_season_progress, 'entry_id')
+  return (t.media ?? []).map((m) => {
+    const e = (entries.get(m.id as string) ?? {}) as Record<string, unknown>
+    return {
+      title: m.title, original_title: m.original_title, category: m.category, format: m.format,
+      release_year: m.release_year, release_status: m.release_status,
+      status: e.status, rating_stars: e.rating != null ? Number(e.rating) / 2 : null,
+      progress: { episodes: e.episodes_watched, chapters: e.chapters_read, volumes: e.volumes_read, current_season: e.current_season, current_episode: e.current_episode },
+      totals: { episodes: m.total_episodes, chapters: m.total_chapters, volumes: m.total_volumes, seasons: m.total_seasons },
+      repeats: { total: e.repeat_count, undated: e.imported_repeat_count, logged: e.session_repeat_count },
+      start_date: e.start_date, completion_date: e.completion_date, added_at: e.added_at,
+      favorite: e.is_favorite, wishlist: !!e.wishlisted_at, time_spent_minutes: e.time_spent_minutes ?? null,
+      poster_url: m.poster_url, custom_cover_url: assetUrl(m.custom_poster_path as string | null), backdrop_url: m.backdrop_url,
+      genres: (genres.get(m.id as string) ?? []).map((g) => g.genre),
+      alternative_titles: (titles.get(m.id as string) ?? []).map((x) => x.title),
+      external_ids: Object.fromEntries((ids.get(m.id as string) ?? []).map((x) => [x.provider, x.url ?? x.external_id])),
+      notes: e.notes ?? null, review: e.review ?? null,
+      seasons: (seasons.get(e.id as string) ?? []).map((s) => ({ season: s.season_number, episodes: s.episodes_watched })),
+      sessions: (sessions.get(e.id as string) ?? []).map((s) => ({
+        type: s.session_type, status: s.status, start: s.start_date, end: s.end_date,
+        rating_stars: s.rating != null ? Number(s.rating) / 2 : null, notes: s.notes,
+      })),
+    }
+  })
 }
 
 export async function currentCounts(): Promise<Record<string, number>> {

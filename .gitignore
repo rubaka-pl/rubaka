@@ -14,3 +14,6 @@ supabase/.temp
 supabase/.branches
 # Local CLI session token (scripts/rubaka.ts)
 .rubaka-session.json
+
+# Generated files containing secrets
+*.local.sql

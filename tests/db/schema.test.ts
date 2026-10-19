@@ -478,3 +478,10 @@ test('reading estimates: manga chapters, novel volumes or chapters', async () =>
   expect(by.novel).toBe(2 * 210 + 10 * 15)       // volumes win over chapters; web novel by chapters
   await fresh.close()
 })
+
+test('media_genres_named is owner-only (security invoker)', async () => {
+  const owner = await as(db, OWNER, async (tx) => (await tx.query<{ n: number }>('select count(*)::int n from media_genres_named')).rows[0].n)
+  expect(owner).toBeGreaterThan(0)
+  const stranger = await as(db, STRANGER, async (tx) => (await tx.query<{ n: number }>('select count(*)::int n from media_genres_named')).rows[0].n)
+  expect(stranger).toBe(0)
+})

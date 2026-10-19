@@ -6,13 +6,13 @@
  * Copyright (c) 2026 RUBAKA
  */
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Download, FileJson, LoaderCircle, LogOut, Sheet, TriangleAlert, Upload } from 'lucide-react'
+import { Download, LoaderCircle, LogOut, Sheet, TriangleAlert, Upload } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import { toast } from 'sonner'
 import { PageContainer } from '@/components/layout/AppShell'
 import { Button } from '@/components/ui/button'
-import { Field, Input, Label, Switch } from '@/components/ui/form-controls'
+import { Checkbox, Field, Input, Label, Switch } from '@/components/ui/form-controls'
 import { Badge, ErrorState, ProgressBar } from '@/components/ui/misc'
 import { ConfirmDialog } from '@/components/ui/overlays'
 import { Select } from '@/components/ui/select'
@@ -25,6 +25,7 @@ import { friendlyError, supabase, unwrap } from '@/lib/supabase'
 import { downloadFile } from '@/lib/utils'
 import type { MediaCategory } from '@/types/db'
 import { backupToCsv, currentCounts, exportBackup, parseBackup, restoreBackup, type Backup } from './backup'
+import { readImportFile } from '@/features/imports/pipeline'
 import { saveSettings, SORT_OPTIONS, useSettings, type Settings } from './settings-store'
 
 function Section({ title, description, children }: { title: string; description?: string; children: ReactNode }) {
@@ -149,8 +150,12 @@ export function SettingsPage() {
         <ExportControls />
       </Section>
 
-      <Section title="Restore" description="Restore from a RUBAKA JSON backup. You will see a preview before anything changes.">
+      <Section title="Restore" description="Restore from a RUBAKA JSON backup (.json or .json.gz). You will see a preview before anything changes.">
         <RestoreControls />
+      </Section>
+
+      <Section title="Email backup" description="A full backup is e-mailed to you on the 1st of every month (set up once in Supabase — see README → “Monthly e-mail backup”).">
+        <EmailBackup />
       </Section>
 
       <Section title="Danger zone">
@@ -162,17 +167,20 @@ export function SettingsPage() {
 }
 
 function ExportControls() {
-  const [scope, setScope] = useState<'full' | MediaCategory>('full')
+  const [cats, setCats] = useState<MediaCategory[]>(CATEGORY_LIST.map((c) => c.id))
+  const [history, setHistory] = useState(true)
   const [busy, setBusy] = useState<string | null>(null)
+  const all = cats.length === CATEGORY_LIST.length
+  const toggle = (c: MediaCategory, on: boolean) => setCats((cur) => (on ? [...cur, c] : cur.filter((x) => x !== c)))
   const run = async (kind: 'json' | 'csv') => {
     setBusy('Preparing…')
     try {
-      const b = await exportBackup(scope, (m) => setBusy(`Reading ${m.replace(/_/g, ' ')}…`))
+      const b = await exportBackup(all ? 'full' : cats, (m) => setBusy(`Reading ${m.replace(/_/g, ' ')}…`), { includeHistory: history })
       const date = new Date().toISOString().slice(0, 10)
-      const name = `rubaka-${scope === 'full' ? 'backup' : scope}-${date}`
-      if (kind === 'json') downloadFile(JSON.stringify(b), `${name}.json`)
+      const name = `rubaka-${all ? 'backup' : cats.join('+')}-${date}`
+      if (kind === 'json') downloadFile(JSON.stringify(b, null, 1), `${name}.json`)
       else downloadFile(backupToCsv(b), `${name}.csv`, 'text/csv')
-      toast.success(`Exported ${b.counts.media ?? 0} titles`)
+      toast.success(`Exported ${(b.counts.media ?? 0).toLocaleString()} titles`)
     } catch (e) {
       toast.error(friendlyError(e))
     } finally {
@@ -181,15 +189,61 @@ function ExportControls() {
   }
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-end gap-2">
-        <Field label="Scope" htmlFor="exp-scope">
-          <Select id="exp-scope" value={scope} onValueChange={(v) => setScope(v as typeof scope)} className="w-52" options={[{ value: 'full', label: 'Everything (full backup)' }, ...CATEGORY_LIST.map((c) => ({ value: c.id, label: c.label }))]} />
-        </Field>
-        <Button onClick={() => void run('json')} disabled={!!busy}><FileJson /> JSON</Button>
-        <Button onClick={() => void run('csv')} disabled={!!busy}><Sheet /> CSV</Button>
+      <div className="flex flex-wrap gap-x-5 gap-y-2">
+        <label className="flex items-center gap-2 text-[13px] font-medium">
+          <Checkbox checked={all ? true : cats.length ? 'indeterminate' : false} onCheckedChange={(v) => setCats(v === true ? CATEGORY_LIST.map((c) => c.id) : [])} /> All
+        </label>
+        {CATEGORY_LIST.map((c) => (
+          <label key={c.id} className="flex items-center gap-2 text-[13px]">
+            <Checkbox checked={cats.includes(c.id)} onCheckedChange={(v) => toggle(c.id, v === true)} /> {c.label}
+          </label>
+        ))}
+      </div>
+      <label className="flex items-center gap-2 text-[13px]">
+        <Checkbox checked={history} onCheckedChange={(v) => setHistory(v === true)} /> Include activity history and settings
+      </label>
+      <div className="flex flex-wrap items-center gap-2">
+        <Button variant="primary" onClick={() => void run('json')} disabled={!!busy || !cats.length} loading={busy != null}><Download /> Export backup</Button>
+        <Button variant="ghost" size="sm" onClick={() => void run('csv')} disabled={!!busy || !cats.length}><Sheet /> CSV table</Button>
       </div>
       {busy && <p className="flex items-center gap-2 text-xs text-fg-3"><LoaderCircle className="size-3.5 animate-spin" /> {busy}</p>}
-      <p className="text-xs text-fg-3">JSON includes metadata, ids, statuses, ratings, progress, sessions, wishlist, favorites, notes and dates. CSV is a flat table for spreadsheets (not restorable).</p>
+      <p className="text-xs text-fg-3">
+        One JSON file with everything: titles and metadata, cover image links (including your uploaded covers), statuses, ratings,
+        progress, rewatch/reread counts and sessions, dates, time spent, wishlist, favorites, notes and reviews — plus a readable
+        list of the library. The same file can be restored below. CSV is a flat table for spreadsheets.
+      </p>
+    </div>
+  )
+}
+
+function EmailBackup() {
+  const [busy, setBusy] = useState(false)
+  const [result, setResult] = useState<string | null>(null)
+  const send = async () => {
+    setBusy(true)
+    setResult(null)
+    try {
+      const { data, error } = await supabase.functions.invoke('monthly-backup', { body: {} })
+      if (error) {
+        const ctx = (error as { context?: Response }).context
+        const detail = ctx ? await ctx.json().then((j: { error?: string }) => j.error).catch(() => null) : null
+        throw new Error(ctx?.status === 404 ? 'The monthly-backup function is not deployed yet.' : detail ?? error.message)
+      }
+      const r = data as { to: string; bytes: number; counts: Record<string, number> }
+      setResult(`Sent to ${r.to}: ${r.counts.library_entries?.toLocaleString() ?? 0} entries, ${(r.bytes / 1e6).toFixed(1)} MB`)
+      toast.success('Backup e-mailed')
+    } catch (e) {
+      toast.error(friendlyError(e))
+      setResult(null)
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <div className="flex flex-col gap-2">
+      <Button className="self-start" onClick={() => void send()} loading={busy}><Upload className="rotate-180" /> Send me a backup now</Button>
+      {result && <p className="text-xs text-success">{result}</p>}
+      <p className="text-xs text-fg-3">The e-mail contains a .json.gz file in the same format as Export — restore it above without unpacking.</p>
     </div>
   )
 }
@@ -207,7 +261,8 @@ function RestoreControls() {
 
   const onFile = async (f: File) => {
     setError(null); setBackup(null)
-    const res = parseBackup(await f.text())
+    // .json.gz backups (e.g. from the monthly e-mail) are unpacked in the browser.
+    const res = parseBackup(await readImportFile(f))
     if ('error' in res) setError(res.error)
     else { setBackup(res.backup); setFileName(f.name) }
   }
@@ -234,7 +289,7 @@ function RestoreControls() {
     <div className="flex flex-col gap-3">
       <label className="flex w-fit cursor-pointer items-center gap-2 rounded-md border border-line bg-surface-2 px-3 py-1.5 text-[13px] hover:border-line-strong">
         <Upload className="size-4" /> Choose backup file…
-        <input type="file" accept=".json,application/json" className="sr-only" onChange={(e) => { const f = e.target.files?.[0]; if (f) void onFile(f) }} />
+        <input type="file" accept=".json,.gz,application/json,application/gzip" className="sr-only" onChange={(e) => { const f = e.target.files?.[0]; if (f) void onFile(f) }} />
       </label>
       {error && <ErrorState error={new Error(error)} />}
       {backup && (

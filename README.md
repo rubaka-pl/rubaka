@@ -60,6 +60,17 @@ TMDB and IGDB secrets live **only** in Supabase, behind the `metadata-proxy` Edg
    ```
 Settings → *Metadata providers* shows whether each one is ready.
 
+## 3b. Monthly e-mail backup (optional)
+
+A full backup (`.json.gz`, restorable in Settings → Restore) is e-mailed on the 1st of every month.
+
+1. Create a free account at [resend.com](https://resend.com) **with the e-mail address that should receive the backups**, then *API Keys → Create API Key*. (Without your own domain, Resend can only send to the account's own address — that is all we need.)
+2. Deploy `supabase/functions/monthly-backup/index.ts` as an Edge Function named `monthly-backup` and **turn off "Verify JWT"** for it (it checks access itself). CLI: `npx supabase functions deploy monthly-backup --project-ref <ref>` (uses `supabase/config.toml`).
+3. Run `node scripts/setup-monthly-backup.mjs`. It writes `supabase/backup-schedule.local.sql` (git-ignored) with a random secret.
+4. Edge Functions → Secrets: `RESEND_API_KEY`, `BACKUP_EMAIL` (your address) and `BACKUP_SECRET` (the value written at the top of the generated file).
+5. SQL Editor: run migration `20261020000011_backup_view.sql`, then the generated `backup-schedule.local.sql` (enables `pg_cron`/`pg_net`, stores the secret in Vault, schedules the job).
+6. Settings → Email backup → **Send me a backup now** to check it works.
+
 ## 4. Deploy to GitHub Pages
 
 1. Push this folder to a GitHub repository.
