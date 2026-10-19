@@ -40,24 +40,37 @@ export function useEntryActions() {
     })
   }
 
-  /** +1 to the primary progress counter (episodes/chapters/routes). */
+  /**
+   * +1 to the primary progress counter (episodes / chapters, or volumes for a
+   * title tracked by volume). Reaching a known total completes the title, with
+   * an Undo in the toast.
+   */
   const increment = (item: TrackedItem) => {
-    const cfg = CATEGORY_CONFIG[item.category]
-    const next: EntryPatch = {}
-    if (cfg.progress === 'episodes') {
-      if (item.total_episodes != null && item.episodes_watched >= item.total_episodes) return
-      next.episodes_watched = item.episodes_watched + 1
-    } else if (cfg.progress === 'chapters') {
-      if (item.total_chapters != null && item.chapters_read >= item.total_chapters) return
-      next.chapters_read = item.chapters_read + 1
-    } else if (cfg.progress === 'routes') {
-      if (item.total_routes != null && item.routes_completed >= item.total_routes) return
-      next.routes_completed = item.routes_completed + 1
-    } else return
-    if (item.status === 'planning' || item.status === 'on_hold') {
+    const step = nextStep(item)
+    if (!step) return
+    const next: EntryPatch = { [step.field]: step.value }
+    let completes = false
+    if (step.total != null && step.value >= step.total && item.status !== 'completed') {
+      Object.assign(next, buildStatusPatch(item, 'completed'))
+      completes = true
+    } else if (item.status === 'planning' || item.status === 'on_hold') {
       Object.assign(next, buildStatusPatch(item, 'in_progress'))
     }
-    patch(item, next)
+    update.mutate({ entryId: item.entry_id, mediaId: item.media_id, patch: next }, {
+      onSuccess: () => {
+        if (!completes) return
+        toast.success(`“${item.title}” completed`, {
+          action: {
+            label: 'Undo',
+            onClick: () => patch(item, {
+              status: item.status, completion_date: item.completion_date, episodes_watched: item.episodes_watched,
+              chapters_read: item.chapters_read, volumes_read: item.volumes_read,
+            }),
+          },
+          duration: 8000,
+        })
+      },
+    })
   }
 
   const toggleWishlist = (item: TrackedItem) => patch(item, { wishlisted_at: item.wishlisted_at ? null : new Date().toISOString() })
@@ -67,12 +80,25 @@ export function useEntryActions() {
   return { patch, setStatus, increment, toggleWishlist, toggleFavorite, setRating, pending: update.isPending }
 }
 
-export function canIncrement(item: TrackedItem): boolean {
+type StepField = 'episodes_watched' | 'chapters_read' | 'volumes_read' | 'routes_completed'
+
+/** The counter +1 would change, its new value and its known total (null = unknown). */
+export function nextStep(item: TrackedItem): { field: StepField; value: number; total: number | null; unit: string } | null {
   const cfg = CATEGORY_CONFIG[item.category]
-  if (cfg.progress === 'episodes') return item.total_episodes == null || item.episodes_watched < item.total_episodes
-  if (cfg.progress === 'chapters') return item.total_chapters == null || item.chapters_read < item.total_chapters
-  if (cfg.progress === 'routes') return item.total_routes == null || item.routes_completed < item.total_routes
-  return false
+  const mk = (field: StepField, cur: number, total: number | null | undefined, unit: string) =>
+    total != null && cur >= total ? null : { field, value: cur + 1, total: total ?? null, unit }
+  if (cfg.progress === 'episodes') return mk('episodes_watched', item.episodes_watched, item.total_episodes, 'ep')
+  if (cfg.progress === 'chapters') {
+    // Light novels are usually tracked by volume: keep counting what is being counted.
+    if (cfg.volumes && item.chapters_read === 0 && item.volumes_read > 0) return mk('volumes_read', item.volumes_read, item.total_volumes, 'vol')
+    return mk('chapters_read', item.chapters_read, item.total_chapters, 'ch')
+  }
+  if (cfg.progress === 'routes') return mk('routes_completed', item.routes_completed, item.total_routes, 'route')
+  return null
+}
+
+export function canIncrement(item: TrackedItem): boolean {
+  return nextStep(item) != null
 }
 
 /** True on devices without hover (touch); quick actions are then always visible. */

@@ -74,6 +74,7 @@ export interface Media {
   episode_duration: number | null
   runtime: number | null
   details: MediaDetails
+  franchise_id: string | null
   locked_fields: string[]
   is_custom: boolean
   enrichment_state: EnrichmentState
@@ -288,4 +289,34 @@ export interface CategorySummary {
   active: number
   completed: number
   wishlist: number
+}
+
+export interface Franchise {
+  id: string
+  name: string
+  source: string | null
+  created_at: string
+  updated_at: string
+}
+
+/** Row of franchise_list(). */
+export interface FranchiseSummary {
+  id: string
+  name: string
+  members: number
+  completed: number
+  in_progress: number
+  categories: MediaCategory[]
+  posters: { poster_url: string | null; custom_poster_path: string | null; title: string }[]
+  avg_rating: number | null
+  first_year: number | null
+  updated_at: string
+}
+
+export interface ShareLink {
+  token: string
+  user_id: string
+  show_ratings: boolean
+  categories: MediaCategory[] | null
+  created_at: string
 }

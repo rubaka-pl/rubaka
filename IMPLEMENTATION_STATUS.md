@@ -21,8 +21,20 @@ _Last updated: 2026-10-20_
   history/sessions, relations, notes with autosave), metadata editor with locked fields, quick cover drop/paste,
   Add Media (online + custom), import wizard + history, enrichment queue + review, statistics, settings,
   export JSON/CSV, restore (merge/replace), delete library.
+- Franchises (migration 12): groups across every category — auto-detect from AniList/VNDB relations
+  (incl. via external ids), TMDB movie collections, IGDB game franchises/collections; manual create/rename/
+  add/remove (hand removals are locked); Franchises page, franchise page, chip on every title page.
+- Public read-only share link (Settings → Share): `/u/<token>`, per-category visibility, optional ratings;
+  definer RPCs expose no notes/reviews/history/wishlist; regenerate or turn off at any time.
+- Visible "+1" next to the progress bar on cards of titles being followed; reaching a known total completes
+  the title (toast with Undo); light novels tracked by volume step volumes.
 - Image uploads are shrunk to WebP in the browser before upload (not yet exercised live).
-- Tests: 60 passing (database tests on the real migrations in PGlite incl. RLS, unit tests); 5 opt-in live tests.
+- Tests: 68 passing (database tests on the real migrations in PGlite incl. RLS, unit tests); 5 opt-in live tests.
+
+## TODO
+
+- Telegram bot: send a Shikimori / MAL / VNDB link → the title is added to the library (Edge Function
+  webhook, owner's chat id whitelisted, bot token in Supabase secrets).
 
 ## Known issues / remaining
 

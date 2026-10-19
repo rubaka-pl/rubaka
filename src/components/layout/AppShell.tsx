@@ -5,7 +5,7 @@
  * Created by RUBAKA
  * Copyright (c) 2026 RUBAKA
  */
-import { ChartColumn, ChevronDown, FileUp, LayoutDashboard, LogOut, Menu as MenuIcon, PanelLeftClose, PanelLeftOpen, Plus, Search, Settings } from 'lucide-react'
+import { ChartColumn, ChevronDown, FileUp, LayoutDashboard, LogOut, Menu as MenuIcon, Network, PanelLeftClose, PanelLeftOpen, Plus, Search, Settings } from 'lucide-react'
 import { useEffect, useState, type ReactNode } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router'
 import { Button } from '@/components/ui/button'
@@ -23,6 +23,7 @@ interface NavItem { to: string; label: string; icon: React.ComponentType<{ class
 const MAIN: NavItem[] = [{ to: '/', label: 'Dashboard', icon: LayoutDashboard }]
 const CATS: NavItem[] = CATEGORY_LIST.map((c) => ({ to: `/${c.slug}`, label: c.label, icon: c.icon }))
 const TOOLS: NavItem[] = [
+  { to: '/franchises', label: 'Franchises', icon: Network },
   { to: '/stats', label: 'Statistics', icon: ChartColumn },
   { to: '/import', label: 'Import', icon: FileUp },
   { to: '/settings', label: 'Settings', icon: Settings },

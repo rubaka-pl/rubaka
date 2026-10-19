@@ -18,6 +18,9 @@ import { LibraryRoute } from '@/features/library/LibraryPage'
 const MediaDetailPage = lazy(() => import('@/features/media-details/MediaDetailPage').then((m) => ({ default: m.MediaDetailPage })))
 const StatsPage = lazy(() => import('@/features/statistics/StatsPage').then((m) => ({ default: m.StatsPage })))
 const ImportPage = lazy(() => import('@/features/imports/ImportPage').then((m) => ({ default: m.ImportPage })))
+const FranchisesPage = lazy(() => import('@/features/franchises/FranchisesPage').then((m) => ({ default: m.FranchisesPage })))
+const FranchisePage = lazy(() => import('@/features/franchises/FranchisePage').then((m) => ({ default: m.FranchisePage })))
+const PublicProfilePage = lazy(() => import('@/features/sharing/PublicProfilePage').then((m) => ({ default: m.PublicProfilePage })))
 const SettingsPage = lazy(() => import('@/features/settings/SettingsPage').then((m) => ({ default: m.SettingsPage })))
 
 const page = (el: ReactNode) => <Suspense fallback={<FullPageSpinner />}>{el}</Suspense>
@@ -40,6 +43,8 @@ function RouteError() {
 
 export const router = createBrowserRouter([
   { path: '/login', element: <LoginPage />, errorElement: <RouteError /> },
+  // Public, read-only profile: no sign-in; the token in the address is the only key.
+  { path: '/u/:token', element: page(<PublicProfilePage />), errorElement: <RouteError /> },
   {
     path: '/',
     element: <RequireAuth><AppShell /></RequireAuth>,
@@ -47,6 +52,8 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: <DashboardPage /> },
       { path: 'media/:id', element: page(<MediaDetailPage />) },
+      { path: 'franchises', element: page(<FranchisesPage />) },
+      { path: 'franchises/:id', element: page(<FranchisePage />) },
       { path: 'stats', element: page(<StatsPage />) },
       { path: 'import', element: page(<ImportPage />) },
       { path: 'settings', element: page(<SettingsPage />) },

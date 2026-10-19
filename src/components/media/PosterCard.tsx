@@ -12,7 +12,7 @@ import { Checkbox } from '@/components/ui/form-controls'
 import { Menu, MenuTrigger, Tooltip } from '@/components/ui/overlays'
 import { ProgressBar } from '@/components/ui/misc'
 import { StarRating } from '@/components/ratings/StarRating'
-import { canIncrement, useCanHover, useEntryActions } from '@/features/tracking/hooks'
+import { canIncrement, nextStep, useCanHover, useEntryActions } from '@/features/tracking/hooks'
 import { CATEGORY_CONFIG, formatLabel, primaryProgress, statusLabel } from '@/lib/categories'
 import { posterSrc } from '@/lib/supabase'
 import { cn } from '@/lib/utils'
@@ -52,6 +52,9 @@ export const PosterCard = memo(function PosterCard({ item, variant = 'grid', sel
   const showProgressBar = progress && progress.unit !== '' && (item.status === 'in_progress' || item.status === 'on_hold' || item.active_session_id)
   const subtitle = cardSubtitle(item, progress)
   const compact = variant === 'compact'
+  const following = item.status === 'in_progress' || item.status === 'on_hold' || !!item.active_session_id
+  // Titles being followed get a visible +1 next to the progress bar (like the stars).
+  const step = following ? nextStep(item) : null
   const href = `/media/${item.media_id}`
 
   return (
@@ -99,7 +102,7 @@ export const PosterCard = memo(function PosterCard({ item, variant = 'grid', sel
             'absolute inset-x-1.5 bottom-1.5 flex items-center justify-end gap-1 transition-opacity',
             canHover ? 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100' : 'opacity-100',
           )}>
-            {canIncrement(item) && canHover && (
+            {!step && canIncrement(item) && canHover && (
               <QuickButton label="+1" onClick={() => actions.increment(item)}><Plus /></QuickButton>
             )}
             {canHover && (
@@ -130,7 +133,25 @@ export const PosterCard = memo(function PosterCard({ item, variant = 'grid', sel
             <span className="truncate tabular-nums">{subtitle}</span>
           </div>
         )}
-        {showProgressBar && <ProgressBar ratio={progress!.ratio} label={`Progress ${progress!.label}`} />}
+        {(showProgressBar || step) && (
+          <div className="flex items-center gap-1.5">
+            {showProgressBar ? <ProgressBar ratio={progress!.ratio} label={`Progress ${progress!.label}`} className="flex-1" /> : <span className="flex-1" />}
+            {step && (
+              <Tooltip content={`+1 ${step.unit} → ${step.value}${step.total ? ` / ${step.total}` : ''}`}>
+                <button
+                  onClick={() => actions.increment(item)}
+                  aria-label={`${item.title}: +1 ${step.unit}`}
+                  className={cn(
+                    'flex shrink-0 items-center rounded-md border border-line bg-surface-2 font-semibold tabular-nums text-fg-2 transition-colors hover:border-accent hover:bg-accent hover:text-white active:scale-95',
+                    compact ? 'h-5 px-1 text-[10px]' : 'h-6 px-1.5 text-[11px]',
+                  )}
+                >
+                  +1
+                </button>
+              </Tooltip>
+            )}
+          </div>
+        )}
         {/* Rate right from the card (hover to preview, click/tap to save) — like Backloggd. */}
         <StarRating
           value={item.rating}

@@ -485,3 +485,90 @@ test('media_genres_named is owner-only (security invoker)', async () => {
   const stranger = await as(db, STRANGER, async (tx) => (await tx.query<{ n: number }>('select count(*)::int n from media_genres_named')).rows[0].n)
   expect(stranger).toBe(0)
 })
+
+describe('franchises', () => {
+  test('relations group titles across categories, also via external ids; hand removals stick', async () => {
+    const fresh = await createTestDb()
+    const q = async <T = Record<string, unknown>>(sql: string, p: unknown[] = []) => as(fresh, OWNER, async (tx) => (await tx.query<T>(sql, p)).rows)
+    const anime = await addTitle(fresh, { category: 'anime', title: 'Mushoku Tensei', release_year: 2021 })
+    const anime2 = await addTitle(fresh, { category: 'anime', title: 'Mushoku Tensei II', release_year: 2023 })
+    const manga = await addTitle(fresh, { category: 'manga', title: 'Mushoku Tensei (manga)', release_year: 2015 })
+    const ln = await addTitle(fresh, { category: 'novel', title: 'Mushoku Tensei (LN)', release_year: 2014, release_date: '2014-01-23' })
+    const other = await addTitle(fresh, { category: 'anime', title: 'Unrelated' })
+    const crossover = await addTitle(fresh, { category: 'anime', title: 'Shared character' })
+    await q(`insert into media_external_ids (media_id, provider, external_id) values ($1, 'anilist', '85564')`, [manga.mediaId])
+    // anime → anime2 by local id; anime → manga only by AniList id; ln → anime by local id.
+    await q(`insert into media_relations (media_id, relation_type, related_media_id) values ($1, 'sequel', $2), ($3, 'adaptation', $1)`, [anime.mediaId, anime2.mediaId, ln.mediaId])
+    await q(`insert into media_relations (media_id, relation_type, related_title, related_provider, related_external_id) values ($1, 'source', 'MT manga', 'anilist', '85564')`, [anime.mediaId])
+    await q(`insert into media_relations (media_id, relation_type, related_media_id) values ($1, 'character', $2)`, [anime.mediaId, crossover.mediaId])
+
+    const r = (await q<{ r: { groups: number; added: number } }>(`select detect_franchises() as r`))[0].r
+    expect(r).toEqual({ groups: 1, added: 4 })
+    const rows = await q<{ id: string; franchise_id: string | null }>(`select id, franchise_id from media`)
+    const fid = rows.find((x) => x.id === anime.mediaId)!.franchise_id
+    expect(fid).toBeTruthy()
+    for (const t of [anime2, manga, ln]) expect(rows.find((x) => x.id === t.mediaId)!.franchise_id).toBe(fid)
+    for (const t of [other, crossover]) expect(rows.find((x) => x.id === t.mediaId)!.franchise_id).toBeNull()
+    expect((await q<{ name: string }>(`select name from franchises`))[0].name).toBe('Mushoku Tensei (LN)') // earliest
+
+    // Removed by hand (locked) → not re-added; running again changes nothing else.
+    await q(`update media set franchise_id = null, locked_fields = array['franchise_id'] where id = $1`, [manga.mediaId])
+    expect((await q<{ r: { added: number } }>(`select detect_franchises() as r`))[0].r.added).toBe(0)
+
+    const list = (await q<{ members: number; categories: string[] }>(`select * from franchise_list()`))[0]
+    expect(list.members).toBe(3)
+    expect([...list.categories].sort()).toEqual(['anime', 'novel'])
+
+    // External key (TMDB collection) groups movies; one title is not enough.
+    const m1 = await addTitle(fresh, { category: 'movie', title: 'Harry Potter 1' })
+    const m2 = await addTitle(fresh, { category: 'movie', title: 'Harry Potter 2' })
+    expect((await q<{ f: string | null }>(`select assign_franchise_group('tmdb_collection:1241', 'Harry Potter', array[$1]::uuid[]) f`, [m1.mediaId]))[0].f).toBeNull()
+    const hp = (await q<{ f: string }>(`select assign_franchise_group('tmdb_collection:1241', 'Harry Potter', array[$1, $2]::uuid[]) f`, [m1.mediaId, m2.mediaId]))[0].f
+    const again = (await q<{ f: string }>(`select assign_franchise_group('tmdb_collection:1241', 'Harry Potter', array[$1, $2]::uuid[]) f`, [m1.mediaId, m2.mediaId]))[0].f
+    expect(again).toBe(hp)
+    await expect(q(`select assign_franchise_group('drop table', 'x', array[$1, $2]::uuid[])`, [m1.mediaId, m2.mediaId])).rejects.toThrow(/Invalid/)
+
+    // Strangers and anon see nothing.
+    expect((await as(fresh, STRANGER, (tx) => tx.query(`select * from franchises`))).rows).toHaveLength(0)
+    await expect(as(fresh, 'anon', (tx) => tx.query(`select * from franchises`))).rejects.toThrow(/permission denied/)
+    await fresh.close()
+  })
+})
+
+describe('public share link', () => {
+  test('read-only data by token only; no notes; ratings and categories follow the link settings', async () => {
+    const fresh = await createTestDb()
+    const q = async <T = Record<string, unknown>>(sql: string, p: unknown[] = []) => as(fresh, OWNER, async (tx) => (await tx.query<T>(sql, p)).rows)
+    await addTitle(fresh, { category: 'anime', title: 'Shared A' }, { status: 'completed', rating: 9, is_favorite: true, notes: 'secret note' })
+    await addTitle(fresh, { category: 'game', title: 'Hidden game' }, { status: 'completed', rating: 6 })
+
+    // Nobody but the owner can create or read links.
+    await expect(as(fresh, STRANGER, (tx) => tx.query(`insert into share_links default values`))).rejects.toThrow(/row-level security/)
+    await expect(as(fresh, 'anon', (tx) => tx.query(`select * from share_links`))).rejects.toThrow(/permission denied/)
+
+    const token = (await q<{ token: string }>(`insert into share_links (categories) values (array['anime']::media_category[]) returning token`))[0].token
+    expect(token).toMatch(/^[0-9a-f]{64}$/)
+
+    const anon = <T,>(sql: string, p: unknown[]) => as(fresh, 'anon', async (tx) => (await tx.query<{ r: T }>(sql, p)).rows[0].r)
+    expect(await anon(`select public_profile($1) r`, ['nope'.padEnd(40, 'x')])).toBeNull()
+    const prof = await anon<{ categories: { category: string; total: number }[]; favorites: Record<string, unknown>[] }>(`select public_profile($1) r`, [token])
+    expect(prof.categories.map((c) => c.category)).toEqual(['anime'])
+    expect(prof.favorites[0].title).toBe('Shared A')
+    expect(prof.favorites[0].rating).toBe(9)
+    expect(JSON.stringify(prof)).not.toContain('secret note')
+    expect(await anon(`select public_library($1, 'game') r`, [token])).toBeNull() // category not shared
+    const lib = await anon<{ total: number; items: Record<string, unknown>[] }>(`select public_library($1, 'anime') r`, [token])
+    expect(lib.total).toBe(1)
+
+    await q(`update share_links set show_ratings = false`)
+    const hidden = await anon<{ items: Record<string, unknown>[] }>(`select public_library($1, 'anime') r`, [token])
+    expect('rating' in hidden.items[0]).toBe(false)
+
+    // Deleting the link turns it off at once.
+    await q(`delete from share_links`)
+    expect(await anon(`select public_profile($1) r`, [token])).toBeNull()
+    // anon still cannot touch the private RPCs.
+    await expect(as(fresh, 'anon', (tx) => tx.query(`select * from franchise_list()`))).rejects.toThrow(/permission denied/)
+    await fresh.close()
+  })
+})

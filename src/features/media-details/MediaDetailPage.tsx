@@ -28,6 +28,7 @@ import { RoutesPanel, SeasonsPanel } from './ProgressPanels'
 import { TrackingPanel, toTracked } from './TrackingPanel'
 import { EditMediaDialog } from './EditMediaDialog'
 import { CoverDrop } from './CoverDrop'
+import { FranchiseControl } from '@/features/franchises/FranchiseControl'
 import { useSettings } from '@/features/settings/settings-store'
 import { invalidateLibrary } from '@/features/tracking/api'
 import { friendlyError } from '@/lib/supabase'
@@ -154,6 +155,7 @@ function Detail({ d }: { d: MediaDetail }) {
                 {d.genres.map((g) => <Link key={g} to={`/${cfg.slug}?genres=${encodeURIComponent(g)}`}><Badge className="hover:bg-accent-soft hover:text-fg">{g}</Badge></Link>)}
               </div>
             )}
+            <FranchiseControl media={media} />
           </div>
         </div>
 

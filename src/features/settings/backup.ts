@@ -18,7 +18,7 @@ export const BACKUP_VERSION = 1
 
 /** Restore order respects foreign keys. */
 export const TABLES = [
-  'media', 'media_titles', 'media_external_ids', 'media_seasons', 'media_relations',
+  'franchises', 'media', 'media_titles', 'media_external_ids', 'media_seasons', 'media_relations',
   'library_entries', 'entry_season_progress', 'tracking_sessions', 'vn_routes', 'activity_log', 'user_settings',
 ] as const
 type Table = (typeof TABLES)[number]
@@ -92,6 +92,9 @@ export async function exportBackup(
     ? await fetchAll('media', 'id')
     : (await fetchAll('media', 'id')).filter((m) => cats!.includes(m.category as MediaCategory))
   tables.media = media
+  // Franchises the exported titles belong to (all of them in a full backup).
+  const fids = new Set(media.map((m) => m.franchise_id as string | null).filter(Boolean))
+  tables.franchises = (await fetchAll('franchises', 'id')).filter((f) => !partial || fids.has(f.id as string))
   const mediaIds = media.map((m) => m.id as string)
   const byMedia = !partial ? undefined : { column: 'media_id', values: mediaIds }
 

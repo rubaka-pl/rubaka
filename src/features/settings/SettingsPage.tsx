@@ -26,6 +26,7 @@ import { downloadFile } from '@/lib/utils'
 import type { MediaCategory } from '@/types/db'
 import { backupToCsv, currentCounts, exportBackup, parseBackup, restoreBackup, type Backup } from './backup'
 import { readImportFile } from '@/features/imports/pipeline'
+import { ShareSettings } from '@/features/sharing/ShareSettings'
 import { saveSettings, SORT_OPTIONS, useSettings, type Settings } from './settings-store'
 
 function Section({ title, description, children }: { title: string; description?: string; children: ReactNode }) {
@@ -144,6 +145,10 @@ export function SettingsPage() {
           To enable TMDB/IGDB, deploy the <code>metadata-proxy</code> Edge Function and set <code>TMDB_READ_TOKEN</code>, <code>TWITCH_CLIENT_ID</code> and <code>TWITCH_CLIENT_SECRET</code> (and optionally <code>MAL_CLIENT_ID</code>) as Supabase secrets — see README → “Metadata providers”.
         </p>
         <Button asChild variant="secondary" className="self-start"><Link to="/import">Open metadata queue</Link></Button>
+      </Section>
+
+      <Section title="Share" description="A secret link to a read-only copy of your library — for friends. Only you can edit; you can turn it off or replace it any time.">
+        <ShareSettings />
       </Section>
 
       <Section title="Export" description="Your data, independent of Supabase. The full JSON backup can be restored here.">

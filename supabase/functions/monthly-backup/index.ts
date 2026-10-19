@@ -33,6 +33,7 @@ const json = (body: unknown, status = 200) =>
 
 // Restore order of the app's backup format (src/features/settings/backup.ts).
 const TABLES: { name: string; source?: string; order: string }[] = [
+  { name: 'franchises', order: 'id' },
   { name: 'media', order: 'id' },
   { name: 'media_titles', order: 'id' },
   { name: 'media_external_ids', order: 'provider,external_id' },
