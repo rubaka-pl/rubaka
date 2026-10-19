@@ -16,6 +16,8 @@ import { useSettings } from '@/features/settings/settings-store'
 import { CATEGORY_CONFIG, CATEGORY_LIST, statusLabel } from '@/lib/categories'
 import { formatDate } from '@/lib/dates'
 import { formatDuration, toDays } from '@/lib/time'
+import { ScrollRow } from '@/components/ui/ScrollRow'
+import { fetchLibrary } from '@/features/tracking/api'
 import { starsText } from '@/lib/rating'
 import { posterSrc, supabase, unwrap } from '@/lib/supabase'
 import { STATUSES, type LibraryStatus, type MediaCategory } from '@/types/db'
@@ -134,10 +136,7 @@ export function StatsPage() {
               <PosterRow items={s.highest_rated} render={(i) => <StarRating value={i.rating} size="xs" />} />
             </Card>
           </div>
-          <Card>
-            <SectionHeader title="Most revisited" />
-            <PosterRow items={s.most_revisited} render={(i) => <span className="text-[11px] text-fg-3">{i.repeat_count}× {CATEGORY_CONFIG[i.category].repeatLabel.toLowerCase()}</span>} empty="No repeats recorded yet." />
-          </Card>
+          <MostRevisited category={category} />
           <Card>
             <SectionHeader title={`Completed in ${s.year} (${s.year_completed.length})`} />
             <PosterRow items={s.year_completed} render={(i) => <span className="text-[11px] text-fg-3">{formatDate(i.completed_on)}</span>} empty={`Nothing with a completion date in ${s.year}.`} wrap />
@@ -145,6 +144,34 @@ export function StatsPage() {
         </>
       )}
     </PageContainer>
+  )
+}
+
+/** All revisited titles (not just a top 12): total counts, swipeable row, link to the full filtered list. */
+function MostRevisited({ category }: { category: 'all' | MediaCategory }) {
+  const q = useQuery({
+    queryKey: ['library', 'stats-revisited', category],
+    queryFn: () => fetchLibrary({ category: category === 'all' ? undefined : category, minRepeats: 1, sort: 'repeats_desc', limit: 40 }),
+  })
+  const items = q.data?.items ?? []
+  const totalTitles = q.data?.total ?? 0
+  // "See all" opens the category list filtered to repeats ≥ 1, most repeated first.
+  const target = category !== 'all' ? category : items[0]?.category
+  const cats = new Set(items.map((i) => i.category))
+  return (
+    <Card>
+      <SectionHeader
+        title={<>Most revisited{totalTitles > 0 && <span className="ml-2 text-xs font-normal text-fg-3">{totalTitles} titles</span>}</>}
+        action={target && totalTitles > 0 && (cats.size <= 1 || category !== 'all') ? (
+          <Link to={`/${CATEGORY_CONFIG[target].slug}?repeats=1&sort=repeats_desc`} className="text-xs text-accent hover:text-accent-hover">See all →</Link>
+        ) : null}
+      />
+      {q.isError ? <ErrorState error={q.error} onRetry={() => void q.refetch()} /> : q.isLoading ? <Skeleton className="h-40" /> : (
+        <PosterRow items={items.map((i) => ({ ...i, repeat_count: i.repeat_count }))}
+          render={(i) => <span className="text-[11px] text-fg-3">{i.repeat_count}× {CATEGORY_CONFIG[i.category].repeatLabel.toLowerCase()}</span>}
+          empty="No repeats recorded yet." />
+      )}
+    </Card>
   )
 }
 
@@ -221,15 +248,15 @@ function Tile({ label, value, hint }: { label: string; value: number | string | 
 
 function PosterRow({ items, render, empty = 'Nothing yet.', wrap }: { items: MiniItem[]; render: (i: MiniItem) => React.ReactNode; empty?: string; wrap?: boolean }) {
   if (!items.length) return <p className="text-[13px] text-fg-3">{empty}</p>
-  return (
-    <div className={wrap ? 'grid grid-cols-[repeat(auto-fill,minmax(88px,1fr))] gap-3' : 'flex gap-3 overflow-x-auto pb-1 scrollbar-none'}>
-      {items.map((i) => (
-        <Link key={i.entry_id} to={`/media/${i.media_id}`} className={wrap ? 'flex min-w-0 flex-col gap-1' : 'flex w-[88px] shrink-0 flex-col gap-1'}>
-          <PosterImage src={posterSrc(i)} title={i.title} category={i.category} />
-          <span className="line-clamp-1 text-[11px] font-medium">{i.title}</span>
-          {render(i)}
-        </Link>
-      ))}
-    </div>
-  )
+  const cards = items.map((i) => (
+    <Link key={i.entry_id} to={`/media/${i.media_id}`} role={wrap ? undefined : 'listitem'}
+      className={wrap ? 'group flex min-w-0 flex-col gap-1' : 'group flex w-[104px] shrink-0 flex-col gap-1 sm:w-[112px]'}>
+      <PosterImage src={posterSrc(i)} title={i.title} category={i.category} className="rounded-lg transition-transform group-hover:-translate-y-0.5" />
+      <span className="line-clamp-1 text-[11px] font-medium group-hover:text-accent-hover">{i.title}</span>
+      {render(i)}
+    </Link>
+  ))
+  if (wrap) return <div className="grid grid-cols-[repeat(auto-fill,minmax(88px,1fr))] gap-3">{cards}</div>
+  // Swipeable row with arrows (same as the dashboard shelves).
+  return <ScrollRow deps={[items.length]}>{cards}</ScrollRow>
 }
