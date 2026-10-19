@@ -138,7 +138,9 @@ function ExternalSearch({ category, onAdded, onCustom }: { category: MediaCatego
 function ResultRow({ r, category, ownedMediaId, onAdded }: { r: ProviderResult; category: MediaCategory; ownedMediaId?: string; onAdded: () => void }) {
   const [confirming, setConfirming] = useState(false)
   const [status, setStatus] = useState<LibraryStatus>('planning')
+  // Wishlist is a short "want first" list: never set implicitly, only by the toggle.
   const [wish, setWish] = useState(false)
+  const changeStatus = (s: LibraryStatus) => setStatus(s)
   const [busy, setBusy] = useState(false)
   const navigate = useNavigate()
   const qc = useQueryClient()
@@ -199,7 +201,7 @@ function ResultRow({ r, category, ownedMediaId, onAdded }: { r: ProviderResult; 
       </div>
       {confirming && !ownedMediaId && (
         <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-line pt-2">
-          <StatusSelect category={category} value={status} onChange={setStatus} className="w-40" />
+          <StatusSelect category={category} value={status} onChange={changeStatus} className="w-40" />
           <Button size="sm" variant={wish ? 'primary' : 'outline'} onClick={() => setWish(!wish)} aria-pressed={wish}><Bookmark /> Wishlist</Button>
           <div className="ml-auto flex gap-1.5">
             <Button size="sm" variant="ghost" onClick={() => setConfirming(false)}>Cancel</Button>
