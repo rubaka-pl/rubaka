@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router'
 import { ConfirmDialog, MenuContent, MenuItem, MenuSeparator, MenuSub, MenuSubContent, MenuSubTrigger } from '@/components/ui/overlays'
 import { canIncrement, useEntryActions } from '@/features/tracking/hooks'
 import { useDeleteMedia } from '@/features/tracking/api'
-import { CATEGORY_CONFIG, statusLabel } from '@/lib/categories'
+import { CATEGORY_CONFIG, statusLabel, wishlistLabel } from '@/lib/categories'
 import { STATUSES, type LibraryItem } from '@/types/db'
 import { QuickEditDialog } from './QuickEditDialog'
 
@@ -34,7 +34,7 @@ export function QuickActionsMenu({ item, onEdit, onDelete }: { item: LibraryItem
       </MenuSub>
       <MenuSeparator />
       <MenuItem onSelect={() => actions.toggleWishlist(item)}>
-        {item.wishlisted_at ? <><BookmarkMinus /> Remove from Wishlist</> : <><Bookmark /> Add to Wishlist</>}
+        {item.wishlisted_at ? <><BookmarkMinus /> Remove from {wishlistLabel(item.category)}</> : <><Bookmark /> Add to {wishlistLabel(item.category)}</>}
       </MenuItem>
       <MenuItem onSelect={() => actions.toggleFavorite(item)}>
         {item.is_favorite ? <><HeartOff /> Remove favorite</> : <><Heart /> Mark favorite</>}

@@ -52,6 +52,8 @@ export const settingsSchema = z.object({
   blurAdult: z.boolean().catch(true).default(true),
   /** Categories whose library page hides the Wishlist tab (data is kept). */
   hiddenWishlistTabs: z.array(z.enum(CATEGORIES)).catch([]).default([]),
+  /** Categories whose library page hides the Planning (Plan to Watch / Backlog) tab. */
+  hiddenPlanningTabs: z.array(z.enum(CATEGORIES)).catch([]).default([]),
 })
 export type Settings = z.infer<typeof settingsSchema>
 export const DEFAULT_SETTINGS: Settings = settingsSchema.parse({})

@@ -107,6 +107,22 @@ export function SettingsPage() {
           </div>
           <p className="text-xs text-fg-3">Hiding the tab keeps the data; the Plan to Watch / Read / Play tab already lists planned titles.</p>
         </div>
+        <div className="flex flex-col gap-2">
+          <Label>Show the planning tab (Plan to Watch / Read / Backlog) in</Label>
+          <div className="flex flex-wrap gap-x-5 gap-y-2">
+            {CATEGORY_LIST.map((c) => {
+              const shown = !s.hiddenPlanningTabs.includes(c.id)
+              return (
+                <label key={c.id} className="flex items-center gap-2 text-[13px]">
+                  <Switch checked={shown} onCheckedChange={(v) => void save({
+                    hiddenPlanningTabs: v ? s.hiddenPlanningTabs.filter((x) => x !== c.id) : [...s.hiddenPlanningTabs, c.id],
+                  })} />
+                  {c.label}
+                </label>
+              )
+            })}
+          </div>
+        </div>
       </Section>
 
       <Section title="Metadata providers" description="Keyless providers work out of the box. TMDB and IGDB need secrets on the server (never in this app's code).">

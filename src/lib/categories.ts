@@ -33,6 +33,8 @@ export interface CategoryConfig {
   planningLabel: string
   /** Verb for repeats: Rewatch / Reread / Replay. */
   repeatLabel: string
+  /** Name of the wishlist in this category (default "Wishlist"). */
+  wishlistLabel?: string
   formats: { value: string; label: string }[]
 }
 
@@ -107,7 +109,7 @@ export const CATEGORY_CONFIG: Record<MediaCategory, CategoryConfig> = {
   game: {
     id: 'game', slug: 'games', label: 'Games', singular: 'Game', icon: Gamepad2,
     progress: 'none', volumes: false, seasons: false, sessionType: 'replay',
-    activeLabel: 'Playing', completedLabel: 'Completed', planningLabel: 'Backlog', repeatLabel: 'Replay',
+    activeLabel: 'Playing', completedLabel: 'Completed', planningLabel: 'Backlog', repeatLabel: 'Replay', wishlistLabel: 'Want to Play',
     formats: [
       { value: 'game', label: 'Game' }, { value: 'dlc', label: 'DLC' }, { value: 'expansion', label: 'Expansion' },
       { value: 'remake', label: 'Remake' }, { value: 'remaster', label: 'Remaster' }, { value: 'other', label: 'Other' },
@@ -130,6 +132,10 @@ export function statusLabel(status: LibraryStatus, category?: MediaCategory): st
     case 'on_hold': return 'On Hold'
     case 'dropped': return 'Dropped'
   }
+}
+
+export function wishlistLabel(category: MediaCategory): string {
+  return CATEGORY_CONFIG[category].wishlistLabel ?? 'Wishlist'
 }
 
 export function formatLabel(category: MediaCategory, format: string | null | undefined): string | null {

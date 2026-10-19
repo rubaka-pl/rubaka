@@ -24,7 +24,7 @@ import { MetadataBanner } from '@/features/enrichment/MetadataBanner'
 import { SORT_OPTIONS, usePerRow, useSettings, useSettingsStore, type ViewMode } from '@/features/settings/settings-store'
 import { fetchLibrary, keys, useBulkUpdate, useDeleteMedia, useFacets } from '@/features/tracking/api'
 import { useDebounced } from '@/features/tracking/hooks'
-import { categoryBySlug, statusLabel, type CategoryConfig } from '@/lib/categories'
+import { categoryBySlug, statusLabel, wishlistLabel, type CategoryConfig } from '@/lib/categories'
 import { friendlyError } from '@/lib/supabase'
 import { cn } from '@/lib/utils'
 import { STATUSES, type LibraryStatus } from '@/types/db'
@@ -43,11 +43,13 @@ function LibraryPage({ cfg }: { cfg: CategoryConfig }) {
   const settings = useSettings()
   const [sp, setSp] = useSearchParams()
   const wishlistHidden = settings.hiddenWishlistTabs.includes(cfg.id)
+  const planningHidden = settings.hiddenPlanningTabs.includes(cfg.id)
   const f = useMemo(() => {
     const r = readFilters(sp, settings.defaultSort)
     // A hidden Wishlist tab cannot be the active one (e.g. from an old link).
-    return wishlistHidden && r.tab === 'wishlist' ? { ...r, tab: 'all' as Tab } : r
-  }, [sp, settings.defaultSort, wishlistHidden])
+    if ((wishlistHidden && r.tab === 'wishlist') || (planningHidden && r.tab === 'planning')) return { ...r, tab: 'all' as Tab }
+    return r
+  }, [sp, settings.defaultSort, wishlistHidden, planningHidden])
   const update = useCallback((patch: Partial<FilterState>) => {
     setSp(writeFilters({ ...f, ...patch }, settings.defaultSort), { replace: true })
   }, [f, setSp, settings.defaultSort])
@@ -148,8 +150,10 @@ function LibraryPage({ cfg }: { cfg: CategoryConfig }) {
   const counts = facets.data?.status_counts ?? {}
   const tabs: { value: Tab; label: string; count?: number }[] = [
     { value: 'all', label: 'All', count: facets.data?.total },
-    ...(['in_progress', 'completed', 'on_hold', 'dropped', 'planning'] as LibraryStatus[]).map((s) => ({ value: s as Tab, label: statusLabel(s, cfg.id), count: counts[s] ?? 0 })),
-    ...(wishlistHidden ? [] : [{ value: 'wishlist' as Tab, label: 'Wishlist', count: facets.data?.wishlist_count }]),
+    ...(['in_progress', 'completed', 'on_hold', 'dropped', 'planning'] as LibraryStatus[])
+      .filter((s) => !(s === 'planning' && planningHidden))
+      .map((s) => ({ value: s as Tab, label: statusLabel(s, cfg.id), count: counts[s] ?? 0 })),
+    ...(wishlistHidden ? [] : [{ value: 'wishlist' as Tab, label: wishlistLabel(cfg.id), count: facets.data?.wishlist_count }]),
   ]
   const nFilters = activeFilterCount(f)
   const sortOptions = f.q ? [{ value: 'relevance', label: 'Relevance' }, ...SORT_OPTIONS] : f.tab === 'wishlist' ? [{ value: 'priority_desc', label: 'Wishlist priority' }, ...SORT_OPTIONS] : SORT_OPTIONS
