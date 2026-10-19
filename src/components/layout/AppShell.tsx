@@ -47,7 +47,9 @@ function NavGroup({ items, collapsed, onNavigate }: { items: NavItem[]; collapse
             {!collapsed && <span className="truncate">{it.label}</span>}
           </NavLink>
         )
-        return <li key={it.to}>{collapsed ? <Tooltip content={it.label} side="right">{link}</Tooltip> : link}</li>
+        // The tooltip trigger wraps a span, not the NavLink: Radix Slot merges
+        // className as strings and would break NavLink's className function.
+        return <li key={it.to}>{collapsed ? <Tooltip content={it.label} side="right"><span className="block">{link}</span></Tooltip> : link}</li>
       })}
     </ul>
   )
