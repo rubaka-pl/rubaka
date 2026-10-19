@@ -54,7 +54,7 @@ export function TrackingPanel({ d }: { d: MediaDetail }) {
             </div>
             {cfg.volumes && <span className="text-[11px] text-fg-3 tabular-nums">Volumes {e.volumes_read} / {m.total_volumes ?? '?'}</span>}
             <div className="flex gap-1.5">
-              {!(cfg.seasons && d.seasonProgress.length) && <Button size="sm" variant="outline" onClick={() => actions.increment(tracked)}>+1 {progress.unit.replace(/s$/, '')}</Button>}
+              {!(cfg.seasons && d.seasonProgress.length) && (progress.total == null || progress.value < progress.total) && <Button size="sm" variant="outline" onClick={() => actions.increment(tracked)}>+1 {progress.unit.replace(/s$/, '')}</Button>}
               <Button size="sm" variant="ghost" onClick={() => setEditingProgress(!editingProgress)}>{editingProgress ? 'Done' : 'Edit'}</Button>
             </div>
           </>
@@ -73,7 +73,7 @@ export function TrackingPanel({ d }: { d: MediaDetail }) {
           onChange={(ev) => save({ completion_date: ev.target.value || null })} />
       </Field>
       <div className="flex shrink-0 flex-col gap-1.5 text-[13px]">
-        <span className="text-xs font-medium text-fg-2">{cfg.repeatLabel}s</span>
+        <span className="text-xs font-medium text-fg-2">{cfg.repeatLabel === 'Rewatch' ? 'Rewatches' : `${cfg.repeatLabel}s`}</span>
         <span className="tabular-nums">{e.repeat_count}{e.imported_repeat_count > 0 && <span className="text-[11px] text-fg-3"> ({e.imported_repeat_count} undated)</span>}</span>
         <span className="text-[11px] text-fg-3">Last activity {formatTimestamp(e.last_activity_at)}</span>
       </div>

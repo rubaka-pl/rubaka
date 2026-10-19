@@ -56,11 +56,26 @@ export const DEFAULT_SETTINGS: Settings = settingsSchema.parse({})
 
 export type ViewMode = 'grid' | 'compact' | 'list'
 
+export const PER_ROW_MIN = 2
+export const PER_ROW_MAX = 12
+export const DEFAULT_PER_ROW = 8
+/** Cards narrower than this (px) drop their text lines (compact look). */
+export const COMPACT_BELOW = 118
+/** Columns never get narrower than this (px): small screens show fewer per row. */
+export const MIN_CARD_PX = 96
+
+export function usePerRow(): number {
+  return useSettingsStore((s) => s.perRow ?? DEFAULT_PER_ROW)
+}
+
 interface SettingsState {
   settings: Settings
   /** Per-category view mode (local interface preference). */
   viewModes: Partial<Record<MediaCategory, ViewMode>>
   sidebarCollapsed: boolean
+  /** How many posters per row (grids, dashboard shelves, statistics). */
+  perRow: number
+  setPerRow: (n: number) => void
   setLocal: (patch: Partial<Settings>) => void
   setViewMode: (c: MediaCategory, v: ViewMode) => void
   setSidebarCollapsed: (v: boolean) => void
@@ -74,6 +89,8 @@ export const useSettingsStore = create<SettingsState>()(
       settings: DEFAULT_SETTINGS,
       viewModes: {},
       sidebarCollapsed: false,
+      perRow: DEFAULT_PER_ROW,
+      setPerRow: (n) => set({ perRow: Math.round(Math.min(PER_ROW_MAX, Math.max(PER_ROW_MIN, n))) }),
       setLocal: (patch) => set((s) => ({ settings: settingsSchema.parse({ ...s.settings, ...patch }) })),
       setViewMode: (c, v) => set((s) => ({ viewModes: { ...s.viewModes, [c]: v } })),
       setSidebarCollapsed: (v) => set({ sidebarCollapsed: v }),

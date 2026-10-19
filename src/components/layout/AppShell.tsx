@@ -128,11 +128,11 @@ export function AppShell() {
           <span className="lg:hidden"><Logo collapsed /></span>
           <button
             onClick={() => setSearchOpen(true)}
-            className="flex h-8 w-full max-w-md items-center gap-2 rounded-md border border-line bg-surface px-2.5 text-[13px] text-fg-3 transition-colors hover:border-line-strong hover:text-fg-2"
+            className="flex h-8 shrink-0 items-center justify-center gap-2 rounded-md border border-line bg-surface text-[13px] text-fg-3 transition-colors hover:border-line-strong hover:text-fg-2 max-sm:w-8 sm:w-full sm:max-w-md sm:justify-start sm:px-2.5"
             aria-label="Search your library"
           >
             <Search className="size-4" />
-            <span className="truncate">Search anime, manga, movies…</span>
+            <span className="hidden truncate sm:inline">Search anime, manga, movies…</span>
             <kbd className="ml-auto hidden rounded border border-line bg-surface-2 px-1.5 text-[10px] font-medium sm:inline">Ctrl K</kbd>
           </button>
           <div className="ml-auto flex items-center gap-1.5">

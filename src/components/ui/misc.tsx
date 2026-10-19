@@ -23,8 +23,8 @@ export function Badge({ children, className, tone = 'default' }: { children: Rea
   )
 }
 
-export function Skeleton({ className }: { className?: string }) {
-  return <div className={cn('relative overflow-hidden rounded-md bg-surface-2', className)} aria-hidden />
+export function Skeleton({ className, style }: { className?: string; style?: React.CSSProperties }) {
+  return <div className={cn('relative overflow-hidden rounded-md bg-surface-2', className)} style={style} aria-hidden />
 }
 
 export function ProgressBar({ ratio, className, label }: { ratio: number | null; className?: string; label?: string }) {
@@ -100,7 +100,8 @@ export function PillTabs<T extends string>({ value, onChange, items, className }
   value: T; onChange: (v: T) => void; items: { value: T; label: string; count?: number }[]; className?: string
 }) {
   return (
-    <div role="tablist" className={cn('flex flex-wrap gap-1', className)}>
+    // One scrollable row on phones, wrapping on wider screens.
+    <div role="tablist" className={cn('-mx-4 flex gap-1 overflow-x-auto px-4 scrollbar-none sm:mx-0 sm:flex-wrap sm:px-0', className)}>
       {items.map((it) => (
         <button
           key={it.value}
@@ -108,7 +109,7 @@ export function PillTabs<T extends string>({ value, onChange, items, className }
           aria-selected={value === it.value}
           onClick={() => onChange(it.value)}
           className={cn(
-            'inline-flex h-7 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium transition-colors',
+            'inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium transition-colors',
             value === it.value ? 'bg-accent-soft text-fg ring-1 ring-accent/50' : 'text-fg-3 hover:bg-surface-hover hover:text-fg',
           )}
         >

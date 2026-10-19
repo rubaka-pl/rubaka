@@ -78,7 +78,12 @@
 @layer base {
   html, body, #root { height: 100%; }
   body {
-    background: var(--background);
+    /* rubaka-glow: a faint accent light from the top; content stays on a flat dark base. */
+    background:
+      radial-gradient(900px 420px at 78% -140px, rgb(139 108 240 / 0.10), transparent 70%),
+      radial-gradient(700px 360px at 8% -160px, rgb(69 183 232 / 0.05), transparent 70%),
+      var(--background);
+    background-attachment: fixed;
     color: var(--text-primary);
     font-family: var(--font-sans);
     font-size: 14px;

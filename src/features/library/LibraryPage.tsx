@@ -6,21 +6,22 @@
  * Copyright (c) 2026 RUBAKA
  */
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query'
-import { Bookmark, CheckSquare, Dices, Grid2x2, LayoutGrid, List, Plus, Search, Trash2, X } from 'lucide-react'
+import { Bookmark, CheckSquare, Dices, LayoutGrid, List, Plus, Search, SlidersHorizontal, Trash2, X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Navigate, useNavigate, useParams, useSearchParams } from 'react-router'
 import { toast } from 'sonner'
 import { PageContainer } from '@/components/layout/AppShell'
 import { MediaListRow } from '@/components/media/MediaListRow'
 import { PosterCard, PosterGrid } from '@/components/media/PosterCard'
+import { PerRowControl } from '@/components/media/PosterSizeControl'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/form-controls'
 import { EmptyState, ErrorState, PillTabs, Skeleton } from '@/components/ui/misc'
-import { ConfirmDialog, Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger, Tooltip } from '@/components/ui/overlays'
+import { ConfirmDialog, Dialog, DialogContent, Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger, Tooltip } from '@/components/ui/overlays'
 import { Select } from '@/components/ui/select'
 import { AddMediaDialog } from '@/features/discovery/AddMediaDialog'
 import { MetadataBanner } from '@/features/enrichment/MetadataBanner'
-import { SORT_OPTIONS, useSettings, useSettingsStore, type ViewMode } from '@/features/settings/settings-store'
+import { SORT_OPTIONS, usePerRow, useSettings, useSettingsStore, type ViewMode } from '@/features/settings/settings-store'
 import { fetchLibrary, keys, useBulkUpdate, useDeleteMedia, useFacets } from '@/features/tracking/api'
 import { useDebounced } from '@/features/tracking/hooks'
 import { categoryBySlug, statusLabel, type CategoryConfig } from '@/lib/categories'
@@ -46,7 +47,11 @@ function LibraryPage({ cfg }: { cfg: CategoryConfig }) {
     setSp(writeFilters({ ...f, ...patch }, settings.defaultSort), { replace: true })
   }, [f, setSp, settings.defaultSort])
 
-  const view = useSettingsStore((s) => s.viewModes[cfg.id] ?? s.settings.defaultView)
+  // 'compact' is a legacy view: it is now just a higher per-row count.
+  const storedView = useSettingsStore((s) => s.viewModes[cfg.id] ?? s.settings.defaultView)
+  const view: ViewMode = storedView === 'compact' ? 'grid' : storedView
+  const perRow = usePerRow()
+  const [filtersOpen, setFiltersOpen] = useState(false)
   const setView = useSettingsStore((s) => s.setViewMode)
   const [searchText, setSearchText] = useState(f.q)
   const debouncedSearch = useDebounced(searchText, 300)
@@ -170,12 +175,19 @@ function LibraryPage({ cfg }: { cfg: CategoryConfig }) {
       <PillTabs className="mt-4" value={f.tab} onChange={(tab) => update({ tab })} items={tabs} />
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
-        <div className="flex items-center gap-1.5">
-          <span className="text-xs text-fg-3">Sort</span>
-          <Select aria-label="Sort by" value={params.sort} onValueChange={(sort) => update({ sort })} options={sortOptions} className="w-48" />
+        <div className="flex min-w-0 items-center gap-1.5">
+          <span className="hidden text-xs text-fg-3 sm:inline">Sort</span>
+          <Select aria-label="Sort by" value={params.sort} onValueChange={(sort) => update({ sort })} options={sortOptions} className="w-44 sm:w-48" />
         </div>
-        <FilterBar cfg={cfg} f={f} facets={facets.data} onChange={update} />
+        {/* Desktop/tablet: filters inline. Phone: in a sheet behind one button. */}
+        <div className="hidden flex-wrap items-center gap-2 md:contents">
+          <FilterBar cfg={cfg} f={f} facets={facets.data} onChange={update} />
+        </div>
+        <Button variant="secondary" className="md:hidden" onClick={() => setFiltersOpen(true)}>
+          <SlidersHorizontal /> Filters{nFilters ? <span className="rounded bg-accent px-1 text-[11px] text-white">{nFilters}</span> : null}
+        </Button>
         <div className="ml-auto flex items-center gap-1">
+          {view !== 'list' && <PerRowControl className="mr-1 hidden sm:flex" />}
           {f.tab === 'wishlist' && (
             <Tooltip content="Pick a random title from this list"><Button variant="ghost" size="icon" onClick={pickRandom} aria-label="Random pick"><Dices /></Button></Tooltip>
           )}
@@ -185,6 +197,18 @@ function LibraryPage({ cfg }: { cfg: CategoryConfig }) {
           <ViewToggle value={view} onChange={(v) => setView(cfg.id, v)} />
         </div>
       </div>
+      <Dialog open={filtersOpen} onOpenChange={setFiltersOpen}>
+        <DialogContent title="Filters" description={`${total.toLocaleString()} matching`}>
+          <div className="flex flex-col items-start gap-3 [&>*]:w-full [&_button[role=combobox]]:flex-1">
+            <FilterBar cfg={cfg} f={f} facets={facets.data} onChange={update} />
+            {view !== 'list' && <div className="flex items-center justify-between"><span className="text-xs text-fg-3">Grid</span><PerRowControl /></div>}
+            <div className="flex gap-2 pt-1">
+              {nFilters > 0 && <Button variant="ghost" onClick={() => update(CLEARED_ALL)}>Clear all</Button>}
+              <Button variant="primary" className="ml-auto" onClick={() => setFiltersOpen(false)}>Show {total.toLocaleString()}</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <div className="mt-2.5"><ActiveFilterChips cfg={cfg} f={f} onChange={update} /></div>
 
@@ -203,7 +227,7 @@ function LibraryPage({ cfg }: { cfg: CategoryConfig }) {
 
       <section className="mt-4" aria-label={`${cfg.label} results`}>
         {query.isLoading ? (
-          <LoadingGrid view={view} />
+          <LoadingGrid view={view} perRow={perRow} />
         ) : query.isError ? (
           <ErrorState error={query.error} onRetry={() => void query.refetch()} />
         ) : items.length === 0 ? (
@@ -215,15 +239,15 @@ function LibraryPage({ cfg }: { cfg: CategoryConfig }) {
             ))}
           </div>
         ) : (
-          <PosterGrid variant={view === 'compact' ? 'compact' : 'grid'}>
-            {items.map((it, i) => (
-              <PosterCard key={it.entry_id} item={it} variant={view === 'compact' ? 'compact' : 'grid'} eager={i < 12}
+          <PosterGrid perRow={perRow}>
+            {(variant) => items.map((it, i) => (
+              <PosterCard key={it.entry_id} item={it} variant={variant} eager={i < 12}
                 selectable={selecting} selected={selected.has(it.entry_id)} onSelectChange={onSelectChange} />
             ))}
           </PosterGrid>
         )}
         <div ref={sentinel} className="h-px" />
-        {query.isFetchingNextPage && <div className="mt-6"><LoadingGrid view={view} rows={1} /></div>}
+        {query.isFetchingNextPage && <div className="mt-6"><LoadingGrid view={view} perRow={perRow} rows={1} /></div>}
         {query.hasNextPage && !query.isFetchingNextPage && (
           <div className="mt-6 flex justify-center"><Button onClick={() => void query.fetchNextPage()}>Load more</Button></div>
         )}
@@ -238,10 +262,10 @@ const CLEARED_ALL: Partial<FilterState> = {
   ratingMin: null, rated: 'any', favorite: false, minRepeats: null, progressMin: null, activeRepeat: false,
 }
 
+// Poster size is a slider now; the old "compact" view is a small poster size.
 function ViewToggle({ value, onChange }: { value: ViewMode; onChange: (v: ViewMode) => void }) {
   const opts: { v: ViewMode; icon: typeof LayoutGrid; label: string }[] = [
-    { v: 'grid', icon: LayoutGrid, label: 'Poster grid' },
-    { v: 'compact', icon: Grid2x2, label: 'Compact grid' },
+    { v: 'grid', icon: LayoutGrid, label: 'Posters' },
     { v: 'list', icon: List, label: 'List' },
   ]
   return (
@@ -258,12 +282,12 @@ function ViewToggle({ value, onChange }: { value: ViewMode; onChange: (v: ViewMo
   )
 }
 
-function LoadingGrid({ view, rows = 2 }: { view: ViewMode; rows?: number }) {
+function LoadingGrid({ view, perRow, rows = 2 }: { view: ViewMode; perRow: number; rows?: number }) {
   if (view === 'list') return <div className="flex flex-col gap-2">{Array.from({ length: 6 * rows }, (_, i) => <Skeleton key={i} className="h-12" />)}</div>
   return (
-    <PosterGrid variant={view === 'compact' ? 'compact' : 'grid'}>
-      {Array.from({ length: 8 * rows }, (_, i) => (
-        <div key={i} className="flex flex-col gap-2"><Skeleton className="aspect-[2/3]" /><Skeleton className="h-3 w-3/4" /><Skeleton className="h-2.5 w-1/2" /></div>
+    <PosterGrid perRow={perRow}>
+      {() => Array.from({ length: perRow * rows }, (_, i) => (
+        <div key={i} className="flex flex-col gap-2"><Skeleton className="aspect-[2/3] rounded-lg" /><Skeleton className="h-3 w-3/4" /><Skeleton className="h-2.5 w-1/2" /></div>
       ))}
     </PosterGrid>
   )

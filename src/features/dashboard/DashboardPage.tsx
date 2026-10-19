@@ -9,13 +9,16 @@ import { useQuery } from '@tanstack/react-query'
 import { ChevronRight, FileUp, History, Plus } from 'lucide-react'
 import { Link } from 'react-router'
 import { PageContainer } from '@/components/layout/AppShell'
-import { PosterCard } from '@/components/media/PosterCard'
+import { PosterCard, usePosterColumns } from '@/components/media/PosterCard'
+import { PerRowControl } from '@/components/media/PosterSizeControl'
 import { PosterImage } from '@/components/media/PosterImage'
 import { StarRating } from '@/components/ratings/StarRating'
 import { Button } from '@/components/ui/button'
-import { EmptyState, ErrorState, SectionHeader, Skeleton } from '@/components/ui/misc'
+import { EmptyState, ErrorState, ProgressBar, SectionHeader, Skeleton } from '@/components/ui/misc'
+import { usePerRow } from '@/features/settings/settings-store'
+import { canIncrement, useEntryActions } from '@/features/tracking/hooks'
 import { fetchLibrary, useActivity, useDashboardSummary, type LibraryParams } from '@/features/tracking/api'
-import { CATEGORY_CONFIG } from '@/lib/categories'
+import { CATEGORY_CONFIG, primaryProgress } from '@/lib/categories'
 import { timeAgo } from '@/lib/dates'
 import { posterSrc } from '@/lib/supabase'
 import { cn } from '@/lib/utils'
@@ -58,9 +61,12 @@ export function DashboardPage() {
 
   return (
     <PageContainer className="flex flex-col gap-7">
-      <header>
-        <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
-        <p className="text-[13px] text-fg-3">Your personal media library</p>
+      <header className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
+          <p className="text-[13px] text-fg-3">Your personal media library</p>
+        </div>
+        <PerRowControl />
       </header>
 
       {/* Category summary */}
@@ -71,11 +77,13 @@ export function DashboardPage() {
               if (!c) return <Skeleton key={i} className="h-[92px]" />
               const cfg = CATEGORY_CONFIG[c.category]
               return (
-                <Link key={c.category} to={`/${cfg.slug}`} className="group rounded-lg border border-line bg-surface p-3 transition-colors hover:border-line-strong hover:bg-surface-hover">
-                  <cfg.icon className={cn('size-5', ACCENTS[i])} aria-hidden />
+                <Link key={c.category} to={`/${cfg.slug}`} className="group relative overflow-hidden rounded-xl border border-line bg-surface p-3 transition-all hover:-translate-y-0.5 hover:border-accent/40 hover:bg-surface-hover">
+                  <span className={cn('flex size-8 items-center justify-center rounded-lg bg-current/10', ACCENTS[i])}><cfg.icon className="size-[18px]" aria-hidden /></span>
                   <div className="mt-2 text-xs text-fg-2">{cfg.label}</div>
                   <div className="text-xl font-bold tabular-nums leading-tight">{c.total.toLocaleString()}</div>
                   <div className="text-[11px] text-fg-3">{cfg.activeLabel} {c.active}</div>
+                  {/* Share of the category that is completed. */}
+                  <ProgressBar ratio={c.total ? c.completed / c.total : 0} className="mt-2 h-[3px]" label={`${cfg.label}: ${c.completed} of ${c.total} completed`} />
                 </Link>
               )
             })}
@@ -91,6 +99,8 @@ export function DashboardPage() {
         />
       ) : (
         <>
+          {current.data?.[0] && <ContinueHero item={current.data[0]} />}
+
           <section aria-labelledby="current-h">
             <SectionHeader title={<span id="current-h">Currently Watching / Reading / Playing</span>} />
             <Shelf query={current} empty="Nothing in progress. Start something from your wishlist!" size="lg" />
@@ -169,20 +179,55 @@ function WishCard({ item }: { item: LibraryItem }) {
   )
 }
 
+/** Horizontal shelf; card width follows the "per row" setting (half shelves show about half as many). */
 function Shelf({ query, empty, size }: { query: { data?: LibraryItem[]; isLoading: boolean; isError: boolean; error: unknown; refetch: () => unknown }; empty: string; size: 'lg' | 'sm' }) {
+  const perRow = usePerRow()
+  const { ref, cols, variant } = usePosterColumns(size === 'lg' ? perRow : Math.max(3, Math.round(perRow / 2)))
+  const width = { width: `calc((100% - ${(cols - 1) * 12}px) / ${cols})` }
   if (query.isError) return <ErrorState error={query.error} onRetry={() => void query.refetch()} />
-  const w = size === 'lg' ? 'w-[132px] sm:w-[150px]' : 'w-[96px] sm:w-[104px]'
-  if (query.isLoading) {
-    return <div className="flex gap-3 overflow-hidden">{Array.from({ length: 8 }, (_, i) => <Skeleton key={i} className={cn('aspect-[2/3] shrink-0', w)} />)}</div>
-  }
-  if (!query.data?.length) return <p className="rounded-lg border border-dashed border-line px-4 py-6 text-center text-[13px] text-fg-3">{empty} <Link to="/import" className="text-accent hover:underline"><Plus className="inline size-3" /> Import</Link></p>
+  if (!query.isLoading && !query.data?.length) return <p className="rounded-lg border border-dashed border-line px-4 py-6 text-center text-[13px] text-fg-3">{empty} <Link to="/import" className="text-accent hover:underline"><Plus className="inline size-3" /> Import</Link></p>
   return (
-    <div className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-2 scrollbar-none" role="list">
-      {query.data.map((it, i) => (
-        <div key={it.entry_id} className={cn('shrink-0', w)} role="listitem">
-          <PosterCard item={it} variant={size === 'lg' ? 'grid' : 'compact'} showCategory={size === 'lg'} eager={i < 8} />
-        </div>
-      ))}
+    <div ref={ref} className="flex gap-3 overflow-x-auto pb-2 scrollbar-none" role="list">
+      {query.isLoading
+        ? Array.from({ length: cols }, (_, i) => <Skeleton key={i} className="aspect-[2/3] shrink-0 rounded-lg" style={width} />)
+        : query.data!.map((it, i) => (
+            <div key={it.entry_id} className="shrink-0" style={width} role="listitem">
+              <PosterCard item={it} variant={variant} showCategory={size === 'lg' && variant === 'grid'} eager={i < 8} />
+            </div>
+          ))}
     </div>
+  )
+}
+
+/** Big "continue" card for the most recently active in-progress title. */
+function ContinueHero({ item }: { item: LibraryItem }) {
+  const actions = useEntryActions()
+  const cfg = CATEGORY_CONFIG[item.category]
+  const progress = primaryProgress(item)
+  const src = posterSrc(item)
+  return (
+    <section aria-label="Continue" className="relative overflow-hidden rounded-xl border border-line bg-surface">
+      {src && <img src={src} alt="" aria-hidden referrerPolicy="no-referrer" className="absolute inset-0 size-full scale-125 object-cover opacity-60 blur-2xl" />}
+      <div className="absolute inset-0 bg-gradient-to-r from-bg/95 via-bg/70 to-bg/20" />
+      <div className="relative flex items-center gap-4 p-4 sm:gap-6 sm:p-5">
+        <Link to={`/media/${item.media_id}`} className="w-20 shrink-0 sm:w-28">
+          <PosterImage src={src} title={item.title} category={item.category} eager className="rounded-lg shadow-card ring-1 ring-white/10" />
+        </Link>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-accent-hover"><cfg.icon className="size-3.5" /> Continue {cfg.activeLabel.toLowerCase()}</div>
+          <Link to={`/media/${item.media_id}`} className="mt-1 line-clamp-2 text-lg font-bold leading-tight hover:text-accent-hover sm:text-2xl">{item.title}</Link>
+          {progress && progress.unit !== '' && (
+            <div className="mt-3 flex max-w-md items-center gap-3">
+              <ProgressBar ratio={progress.ratio} className="h-1.5 flex-1" label="Progress" />
+              <span className="shrink-0 text-[13px] tabular-nums text-fg-2">{progress.label}</span>
+            </div>
+          )}
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            {canIncrement(item) && <Button variant="primary" size="sm" onClick={() => actions.increment(item)}><Plus /> 1 {progress?.unit.replace(/s$/, '') ?? ''}</Button>}
+            <StarRating value={item.rating} onChange={(v) => actions.setRating(item, v)} size="md" label={`Rate ${item.title}`} />
+          </div>
+        </div>
+      </div>
+    </section>
   )
 }

@@ -6,7 +6,7 @@
  * Copyright (c) 2026 RUBAKA
  */
 import { Bookmark, Ellipsis, Heart, Plus, Repeat } from 'lucide-react'
-import { memo } from 'react'
+import { memo, useCallback, useRef, useState } from 'react'
 import { Link } from 'react-router'
 import { Checkbox } from '@/components/ui/form-controls'
 import { Menu, MenuTrigger, Tooltip } from '@/components/ui/overlays'
@@ -14,10 +14,10 @@ import { ProgressBar } from '@/components/ui/misc'
 import { StarRating } from '@/components/ratings/StarRating'
 import { canIncrement, useCanHover, useEntryActions } from '@/features/tracking/hooks'
 import { CATEGORY_CONFIG, formatLabel, primaryProgress, statusLabel } from '@/lib/categories'
-import { formatDate } from '@/lib/dates'
 import { posterSrc } from '@/lib/supabase'
 import { cn } from '@/lib/utils'
 import type { LibraryItem, LibraryStatus } from '@/types/db'
+import { COMPACT_BELOW, MIN_CARD_PX } from '@/features/settings/settings-store'
 import { PosterImage } from './PosterImage'
 import { QuickActionsMenu, useQuickActionDialogs } from './QuickActions'
 
@@ -63,7 +63,10 @@ export const PosterCard = memo(function PosterCard({ item, variant = 'grid', sel
             title={item.title}
             category={item.category}
             eager={eager}
-            className={cn('shadow-sm ring-1 ring-black/20 transition-[transform,box-shadow] duration-200', canHover && 'group-hover:-translate-y-0.5 group-hover:shadow-card')}
+            className={cn(
+              'rounded-lg shadow-[0_4px_14px_-6px_rgb(0_0_0/0.6)] ring-1 ring-white/[0.06] transition-[transform,box-shadow] duration-200',
+              canHover && 'group-hover:-translate-y-1 group-hover:shadow-[0_14px_32px_-12px_rgb(139_108_240/0.55)] group-hover:ring-accent/50',
+            )}
           />
         </Link>
 
@@ -128,11 +131,14 @@ export const PosterCard = memo(function PosterCard({ item, variant = 'grid', sel
           </div>
         )}
         {showProgressBar && <ProgressBar ratio={progress!.ratio} label={`Progress ${progress!.label}`} />}
-        {item.rating != null ? (
-          <StarRating value={item.rating} size={compact ? 'xs' : 'sm'} />
-        ) : !compact ? (
-          <span className="h-[14px] text-[11px] text-fg-3">{item.wishlisted_at && !showCategory ? `Added ${formatDate(item.wishlisted_at.slice(0, 10))}` : 'Unrated'}</span>
-        ) : null}
+        {/* Rate right from the card (hover to preview, click/tap to save) — like Backloggd. */}
+        <StarRating
+          value={item.rating}
+          onChange={(v) => actions.setRating(item, v)}
+          size={compact ? 'xs' : 'sm'}
+          label={`Rate ${item.title}`}
+          className={cn(item.rating == null && 'opacity-60 transition-opacity hover:opacity-100 focus-within:opacity-100')}
+        />
       </div>
       {dialogs}
     </article>
@@ -170,18 +176,40 @@ function QuickButton({ label, onClick, children }: { label: string; onClick: () 
   )
 }
 
-export function PosterGrid({ children, variant = 'grid', className }: { children: React.ReactNode; variant?: 'grid' | 'compact'; className?: string }) {
+/**
+ * Measures a container and returns how many columns to use for the chosen
+ * "per row" value: exactly that many, unless the screen is too narrow (then as
+ * many as fit at MIN_CARD_PX, at least 2), plus the resulting card variant.
+ */
+export function usePosterColumns(perRow: number) {
+  const [width, setWidth] = useState(0)
+  const ro = useRef<ResizeObserver | null>(null)
+  const ref = useCallback((el: HTMLElement | null) => {
+    ro.current?.disconnect()
+    if (!el) return
+    setWidth(el.clientWidth)
+    ro.current = new ResizeObserver(([e]) => setWidth(e.contentRect.width))
+    ro.current.observe(el)
+  }, [])
+  const fit = width ? Math.max(2, Math.floor((width + 16) / (MIN_CARD_PX + 16))) : perRow
+  const cols = Math.min(perRow, fit)
+  const cardPx = width ? (width - (cols - 1) * 16) / cols : 160
+  const variant: 'grid' | 'compact' = cardPx < COMPACT_BELOW ? 'compact' : 'grid'
+  return { ref, cols, variant }
+}
+
+/** Poster grid with a fixed number of columns ("per row"). */
+export function PosterGrid({ perRow, className, children }: {
+  perRow: number; className?: string; children: (variant: 'grid' | 'compact') => React.ReactNode
+}) {
+  const { ref, cols, variant } = usePosterColumns(perRow)
   return (
     <div
-      className={cn(
-        'grid gap-x-3.5 gap-y-5',
-        variant === 'grid'
-          ? 'grid-cols-[repeat(auto-fill,minmax(118px,1fr))] sm:grid-cols-[repeat(auto-fill,minmax(140px,1fr))]'
-          : 'grid-cols-[repeat(auto-fill,minmax(84px,1fr))] gap-x-2.5 gap-y-3 sm:grid-cols-[repeat(auto-fill,minmax(100px,1fr))]',
-        className,
-      )}
+      ref={ref}
+      className={cn('grid', variant === 'compact' ? 'gap-x-3 gap-y-4' : 'gap-x-4 gap-y-6', className)}
+      style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}
     >
-      {children}
+      {children(variant)}
     </div>
   )
 }
