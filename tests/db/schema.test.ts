@@ -465,3 +465,16 @@ describe('time spent', () => {
     await fresh.close()
   })
 })
+
+test('reading estimates: manga chapters, novel volumes or chapters', async () => {
+  const fresh = await createTestDb()
+  const q = async (sql: string) => as(fresh, OWNER, async (tx) => (await tx.query(sql)).rows)
+  await addTitle(fresh, { category: 'manga', title: 'M', total_chapters: 100 }, { status: 'completed', chapters_read: 100, imported_repeat_count: 1 })
+  await addTitle(fresh, { category: 'novel', title: 'LN' }, { status: 'in_progress', volumes_read: 2, chapters_read: 30 })
+  await addTitle(fresh, { category: 'novel', title: 'WN' }, { status: 'in_progress', chapters_read: 10 })
+  const t = ((await q(`select time_stats() as t`))[0] as { t: { category: string; minutes: number }[] }).t
+  const by = Object.fromEntries(t.map((r) => [r.category, Number(r.minutes)]))
+  expect(by.manga).toBe(Math.round((100 + 100) * 9.23)) // read + one reread
+  expect(by.novel).toBe(2 * 210 + 10 * 15)       // volumes win over chapters; web novel by chapters
+  await fresh.close()
+})

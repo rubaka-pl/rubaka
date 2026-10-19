@@ -3,8 +3,8 @@
 // (episodes watched + repeats × total episodes) × episode length.
 import type { LibraryEntry, Media } from '@/types/db'
 
-type M = Pick<Media, 'category' | 'episode_duration' | 'runtime' | 'total_episodes' | 'details'>
-type E = Pick<LibraryEntry, 'status' | 'episodes_watched' | 'repeat_count' | 'time_spent_minutes'>
+type M = Pick<Media, 'category' | 'episode_duration' | 'runtime' | 'total_episodes' | 'details'> & Partial<Pick<Media, 'total_chapters' | 'total_volumes'>>
+type E = Pick<LibraryEntry, 'status' | 'episodes_watched' | 'chapters_read' | 'volumes_read' | 'repeat_count' | 'time_spent_minutes'>
 
 export function estimatedMinutes(m: M, e: E): number | null {
   const done = e.status === 'completed' ? 1 : 0
@@ -23,6 +23,14 @@ export function estimatedMinutes(m: M, e: E): number | null {
       const len = Number(m.details?.length_minutes)
       return len > 0 ? (done + e.repeat_count) * len : null
     }
+    // Reading estimates (see migration 10): manga chapter ≈ 9.23 min (matches MAL "Days"),
+    // novel volume ≈ 210 min, novel chapter ≈ 15 min when no volumes are tracked.
+    case 'manga':
+      return Math.round((e.chapters_read + e.repeat_count * (m.total_chapters ?? e.chapters_read)) * 9.23) || null
+    case 'novel':
+      return e.volumes_read > 0
+        ? (e.volumes_read + e.repeat_count * (m.total_volumes ?? e.volumes_read)) * 210
+        : (e.chapters_read + e.repeat_count * (m.total_chapters ?? e.chapters_read)) * 15 || null
     default:
       return null
   }
