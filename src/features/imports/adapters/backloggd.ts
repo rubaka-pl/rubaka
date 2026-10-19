@@ -9,7 +9,7 @@
 // (https://github.com/jolacdev/toolkittd). JSON = array of:
 //   { id, name, most_recent_playthrough_id, playthroughs: { [id]: Playthrough }, game_log?: GameLog }
 // Types taken from the extension source (entrypoints/backloggd.content/shared/types/api.ts).
-// Hours/minutes fields are ignored: RUBAKA does not track play time.
+// Total hours/minutes from the game log become the entry's time spent.
 import { isISODate } from '@/lib/dates'
 import type { LibraryStatus } from '@/types/db'
 import type { ImportAdapter, InvalidRecord, NormalizedRecord, ParseResult } from '../types'
@@ -32,6 +32,8 @@ interface GameLog {
   is_playing?: boolean
   is_wishlist?: boolean
   rating?: number
+  total_hours?: number
+  total_minutes?: number
 }
 interface BackloggdGame {
   id: string | number
@@ -58,6 +60,12 @@ function detectScale(games: BackloggdGame[]): 'half' | 'stars' {
   if (values.some((v) => v > 5)) return 'half'
   if (values.some((v) => !Number.isInteger(v))) return 'stars'
   return 'half'
+}
+
+/** Logged play time in minutes (0 / missing = unknown). */
+function playedMinutes(log: GameLog): number | null {
+  const m = Math.round((Number(log.total_hours) || 0) * 60 + (Number(log.total_minutes) || 0))
+  return m > 0 ? m : null
 }
 
 export function parseBackloggd(text: string, options: Record<string, string>): ParseResult {
@@ -134,6 +142,7 @@ export function parseBackloggd(text: string, options: Record<string, string>): P
         completion_date: status === 'completed' ? finish : null,
         is_favorite: log.game_liked === true,
         review: first?.review?.trim() || null,
+        ...(playedMinutes(log) ? { time_spent_minutes: playedMinutes(log) } : {}),
         ...(log.is_wishlist ? { wishlisted_at: new Date().toISOString() } : {}),
       },
       sessions: sessions.length ? sessions : undefined,

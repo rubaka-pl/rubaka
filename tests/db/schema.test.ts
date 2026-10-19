@@ -443,3 +443,25 @@ describe('completed means all episodes', () => {
     expect((await one<{ c: number }>(`select chapters_read c from library_entries where id = $1`, [manga.entryId])).c).toBe(40)
   })
 })
+
+describe('time spent', () => {
+  test('MAL-style estimates, movie runtime, manual override', async () => {
+    const fresh = await createTestDb()
+    const add = async (media: Record<string, unknown>, entry: Record<string, unknown>) => addTitle(fresh, media, entry)
+    const q = async (sql: string, p: unknown[] = []) => as(fresh, OWNER, async (tx) => (await tx.query(sql, p)).rows)
+    await add({ category: 'anime', title: 'A', total_episodes: 12, episode_duration: 24 }, { status: 'completed', episodes_watched: 12, imported_repeat_count: 1 })
+    await add({ category: 'anime', title: 'B', total_episodes: 24, episode_duration: 24 }, { status: 'in_progress', episodes_watched: 5 })
+    await add({ category: 'anime', title: 'C (no duration)', total_episodes: 12 }, { status: 'completed', episodes_watched: 12 })
+    await add({ category: 'movie', title: 'M', runtime: 100 }, { status: 'completed' })
+    await add({ category: 'movie', title: 'Planned', runtime: 90 }, { status: 'planning' })
+    const g = await add({ category: 'game', title: 'G', details: { time_to_beat_minutes: 600 } }, { status: 'completed' })
+    await q(`update library_entries set time_spent_minutes = 1500 where id = $1`, [g.entryId])
+    const rows = (await q(`select time_stats() as t`))[0] as { t: { category: string; minutes: number; counted: number; missing: number; manual: number }[] }
+    const by = Object.fromEntries(rows.t.map((r) => [r.category, r]))
+    // anime: A = (12 + 1×12) × 24 = 576, B = 5 × 24 = 120 → 696; C has no duration → missing
+    expect(by.anime).toMatchObject({ minutes: 696, counted: 2, missing: 1 })
+    expect(by.movie).toMatchObject({ minutes: 100, counted: 1 })
+    expect(by.game).toMatchObject({ minutes: 1500, manual: 1 })
+    await fresh.close()
+  })
+})

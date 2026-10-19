@@ -22,6 +22,7 @@ import { useSettings } from '@/features/settings/settings-store'
 import { useDebounced } from '@/features/tracking/hooks'
 import { availableProviders, PROVIDER_LABEL, searchProvider, type SearchProvider } from '@/integrations'
 import { toEnrichmentPayload, type ProviderResult } from '@/integrations/types'
+import { withTimeToBeat } from '@/integrations/proxied'
 import { CATEGORY_CONFIG, CATEGORY_LIST, formatLabel } from '@/lib/categories'
 import { buildStatusPatch } from '@/features/tracking/api'
 import { friendlyError, supabase, unwrap } from '@/lib/supabase'
@@ -151,7 +152,7 @@ function ResultRow({ r, category, ownedMediaId, onAdded }: { r: ProviderResult; 
   const add = async () => {
     setBusy(true)
     try {
-      const payload = toEnrichmentPayload(r)
+      const payload = toEnrichmentPayload(await withTimeToBeat(r))
       const entry = {
         ...buildStatusPatch({ category, status: 'planning', start_date: null, completion_date: null, episodes_watched: 0, chapters_read: 0, volumes_read: 0, routes_completed: 0, total_episodes: r.totals?.episodes, total_chapters: r.totals?.chapters, total_volumes: r.totals?.volumes, total_routes: r.totals?.routes }, status),
         status,

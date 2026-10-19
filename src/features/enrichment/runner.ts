@@ -20,7 +20,7 @@ import { create } from 'zustand'
 import { getAniListById, getAniListByMalIds, searchAniList } from '@/integrations/anilist'
 import { matchConfidence } from '@/integrations'
 import { searchOpenLibrary } from '@/integrations/openlibrary'
-import { findTmdbByImdb, getIgdbById, getProxyStatus, getTmdbMovie, getTmdbTv, searchIgdb, searchTmdb } from '@/integrations/proxied'
+import { findTmdbByImdb, getIgdbById, getProxyStatus, getTmdbMovie, getTmdbTv, searchIgdb, searchTmdb, withTimeToBeat } from '@/integrations/proxied'
 import { getTvmazeById, getTvmazeByImdb, searchTvmaze } from '@/integrations/tvmaze'
 import { toEnrichmentPayload, type ProviderResult } from '@/integrations/types'
 import { getVndbById, searchVndb } from '@/integrations/vndb'
@@ -38,7 +38,7 @@ export type EnrichOutcome =
 /** Threshold for applying a title-only match automatically. */
 const AUTO_MATCH = 0.92
 
-type MediaLite = Pick<Media, 'id' | 'category' | 'title' | 'original_title' | 'release_year' | 'format'>
+type MediaLite = Pick<Media, 'id' | 'category' | 'title' | 'original_title' | 'release_year' | 'format'> & Partial<Pick<Media, 'release_date'>>
 
 const idOf = (ids: Pick<MediaExternalId, 'provider' | 'external_id'>[], p: string) => ids.find((x) => x.provider === p)?.external_id
 
@@ -46,9 +46,14 @@ const idOf = (ids: Pick<MediaExternalId, 'provider' | 'external_id'>[], p: strin
  * Remove values that would violate the target row's constraints (e.g. a light
  * novel format on an entry that is still in the Manga category).
  */
-export function sanitizeForCategory(r: ProviderResult, category: MediaCategory): ProviderResult {
+export function sanitizeForCategory(r: ProviderResult, category: MediaCategory, existing?: { release_date?: string | null }): ProviderResult {
   const formats = CATEGORY_CONFIG[category].formats.map((f) => f.value)
-  return { ...r, format: r.format && formats.includes(r.format) ? r.format : null }
+  // An end date before the start date would be rejected by the database (e.g.
+  // IMDb gave a later regional premiere than the provider's last air date).
+  // Enrichment only fills empty fields, so the existing release date wins.
+  const start = existing?.release_date ?? r.releaseDate
+  const endDate = r.endDate && start && r.endDate < start ? null : r.endDate
+  return { ...r, format: r.format && formats.includes(r.format) ? r.format : null, endDate }
 }
 
 /** Pick an automatic title match only when it is clearly the best and very similar. */
@@ -127,7 +132,9 @@ export async function findMetadata(m: MediaLite, ids: Pick<MediaExternalId, 'pro
         const r = await getIgdbById(Number(igdb))
         return r ? { status: 'matched', result: r, changed: [] } : { status: 'unresolved' }
       }
-      return pickByTitle(m, await searchIgdb(m.title))
+      // Title matches come from search results, which lack time-to-beat: add it to the chosen game.
+      const pick = pickByTitle(m, await searchIgdb(m.title))
+      return pick.status === 'matched' ? { ...pick, result: await withTimeToBeat(pick.result) } : pick
     }
   }
 }
@@ -137,7 +144,7 @@ async function applyResults(items: { media: MediaLite; provider: string; result:
   const payload = items.map((it) => ({
     media_id: it.media.id,
     provider: it.provider,
-    payload: toEnrichmentPayload(sanitizeForCategory(it.result, it.media.category)),
+    payload: toEnrichmentPayload(sanitizeForCategory(it.result, it.media.category, it.media)),
   }))
   unwrap(await supabase.rpc('apply_enrichment_batch', { p_items: payload }), 'apply enrichment')
   // Category suggestions are stored for review — never applied automatically.
@@ -163,7 +170,7 @@ export async function enrichOne(media: Media, ids: MediaExternalId[]): Promise<E
   const out = await findMetadata(media, ids)
   if (out.status === 'matched') {
     const res = unwrap(await supabase.rpc('apply_enrichment', {
-      p_media_id: media.id, p: toEnrichmentPayload(sanitizeForCategory(out.result, media.category)), p_provider: out.result.provider,
+      p_media_id: media.id, p: toEnrichmentPayload(sanitizeForCategory(out.result, media.category, media)), p_provider: out.result.provider,
     }), 'apply enrichment') as { changed: string[] }
     return { ...out, changed: res.changed ?? [] }
   }
@@ -216,7 +223,7 @@ export async function runEnrichment(category?: MediaCategory) {
 
     while (!useEnrichment.getState().cancelled) {
       let q = supabase.from('metadata_enrichment_jobs')
-        .select('media_id, provider, attempts, media!inner(id, category, title, original_title, release_year, format, media_external_ids(provider, external_id))')
+        .select('media_id, provider, attempts, media!inner(id, category, title, original_title, release_year, release_date, format, media_external_ids(provider, external_id))')
         .eq('status', 'pending').lte('next_attempt_at', new Date().toISOString())
         .order('created_at').limit(50)
       if (category) q = q.eq('media.category', category)
@@ -293,7 +300,8 @@ export async function runEnrichment(category?: MediaCategory) {
 }
 
 /** Apply a candidate chosen by the user in the review list. */
-export async function applyCandidate(mediaId: string, category: MediaCategory, provider: string, candidate: ProviderResult) {
+export async function applyCandidate(mediaId: string, category: MediaCategory, provider: string, picked: ProviderResult) {
+  const candidate = await withTimeToBeat(picked)
   unwrap(await supabase.rpc('apply_enrichment_batch', {
     p_items: [{ media_id: mediaId, provider, payload: toEnrichmentPayload(sanitizeForCategory(candidate, category)) }],
   }), 'apply candidate')

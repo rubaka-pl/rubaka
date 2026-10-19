@@ -12,3 +12,11 @@ test('MAL API mapping: zero counts are unknown, light novels suggest the Novels 
   expect(r.externalIds[0]).toMatchObject({ provider: 'mal_manga', external_id: '2' })
   expect(mapMal({ id: 9, title: 'LN', media_type: 'light_novel' }, 'manga')).toMatchObject({ category: 'novel', format: 'light_novel' })
 })
+
+test('enrichment never writes an end date before the start date', async () => {
+  const { sanitizeForCategory } = await import('@/features/enrichment/runner')
+  const r = { provider: 'tvmaze' as const, externalId: '1', category: 'tv_series' as const, title: 'X', releaseDate: '2017-01-01', endDate: '2017-06-01', externalIds: [] }
+  expect(sanitizeForCategory(r, 'tv_series', { release_date: '2018-02-01' }).endDate).toBeNull()
+  expect(sanitizeForCategory(r, 'tv_series', { release_date: '2016-12-01' }).endDate).toBe('2017-06-01')
+  expect(sanitizeForCategory(r, 'tv_series').endDate).toBe('2017-06-01')
+})

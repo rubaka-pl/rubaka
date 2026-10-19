@@ -1,4 +1,4 @@
-import { Check, Minus, Play, Plus, Repeat, X } from 'lucide-react'
+import { Check, Minus, Pencil, Play, Plus, Repeat, X } from 'lucide-react'
 import { useState } from 'react'
 import { ProgressFields, StatusSelect, type ProgressValues } from '@/components/media/EntryFields'
 import { StarRating } from '@/components/ratings/StarRating'
@@ -10,6 +10,48 @@ import { useEntryActions, type TrackedItem } from '@/features/tracking/hooks'
 import { CATEGORY_CONFIG, primaryProgress } from '@/lib/categories'
 import { formatDate, formatTimestamp, todayISO } from '@/lib/dates'
 import type { EntryPatch } from '@/types/db'
+import { estimatedMinutes, formatDuration, timeSpentMinutes } from '@/lib/time'
+
+/** Time spent: your own value, or the MAL-style estimate. Editable in hours + minutes. */
+function TimeSpent({ d, onSave }: { d: MediaDetail; onSave: (minutes: number | null) => void }) {
+  const e = d.entry!
+  const { minutes, manual } = timeSpentMinutes(d.media, e)
+  const estimate = estimatedMinutes(d.media, e)
+  const [editing, setEditing] = useState(false)
+  const [h, setH] = useState('')
+  const [min, setMin] = useState('')
+  const open = () => {
+    const base = minutes ?? 0
+    setH(String(Math.floor(base / 60)))
+    setMin(String(base % 60))
+    setEditing(true)
+  }
+  const label = d.media.category === 'game' ? 'Time played' : d.media.category === 'manga' || d.media.category === 'novel' || d.media.category === 'visual_novel' ? 'Time read' : 'Time watched'
+  return (
+    <div className="flex shrink-0 flex-col gap-1.5 text-[13px]">
+      <span className="text-xs font-medium text-fg-2">{label}</span>
+      {editing ? (
+        <div className="flex items-center gap-1.5">
+          <Input aria-label="Hours" type="number" min={0} className="w-16" value={h} onChange={(ev) => setH(ev.target.value)} /> h
+          <Input aria-label="Minutes" type="number" min={0} max={59} className="w-14" value={min} onChange={(ev) => setMin(ev.target.value)} /> min
+          <Button size="icon-sm" variant="primary" aria-label="Save time"
+            onClick={() => { onSave(Math.max(0, Math.round((Number(h) || 0) * 60 + (Number(min) || 0)))); setEditing(false) }}><Check /></Button>
+          <Button size="icon-sm" variant="ghost" aria-label="Cancel" onClick={() => setEditing(false)}><X /></Button>
+        </div>
+      ) : (
+        <button type="button" onClick={open} className="flex items-baseline gap-1.5 text-left hover:text-accent-hover" title="Set your own time">
+          <span className="text-[15px] font-semibold tabular-nums">{formatDuration(minutes)}</span>
+          <Pencil className="size-3 text-fg-3" />
+        </button>
+      )}
+      <span className="text-[11px] text-fg-3">
+        {manual ? (
+          <>Your time{estimate != null && <> · estimate {formatDuration(estimate)}</>} · <button className="underline hover:text-fg" onClick={() => onSave(null)}>use estimate</button></>
+        ) : minutes != null ? 'Estimated' : 'Unknown — click to set'}
+      </span>
+    </div>
+  )
+}
 
 /**
  * Start / finish a rewatch, reread or replay right from the tracking panel.
@@ -120,6 +162,7 @@ export function TrackingPanel({ d }: { d: MediaDetail }) {
         </div>
         <span className="text-[11px] text-fg-3">Last activity {formatTimestamp(e.last_activity_at)}</span>
       </div>
+      <TimeSpent d={d} onSave={(minutes) => save({ time_spent_minutes: minutes })} />
       <RepeatControls d={d} />
       {editingProgress && (
         <div className="basis-full">

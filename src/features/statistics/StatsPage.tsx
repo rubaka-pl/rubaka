@@ -15,6 +15,7 @@ import { Select } from '@/components/ui/select'
 import { useSettings } from '@/features/settings/settings-store'
 import { CATEGORY_CONFIG, CATEGORY_LIST, statusLabel } from '@/lib/categories'
 import { formatDate } from '@/lib/dates'
+import { formatDuration, toDays } from '@/lib/time'
 import { starsText } from '@/lib/rating'
 import { posterSrc, supabase, unwrap } from '@/lib/supabase'
 import { STATUSES, type LibraryStatus, type MediaCategory } from '@/types/db'
@@ -74,6 +75,8 @@ export function StatsPage() {
             <Tile label="Repeats completed" value={s.overview.repeats_completed} hint={s.overview.repeats_undated ? `${s.overview.repeats_undated} undated (imported)` : undefined} />
             <Tile label="Average rating" value={s.overview.average_rating != null ? `${s.overview.average_rating}★` : '—'} hint={`${s.overview.rated ?? 0} rated`} />
           </section>
+
+          <TimeSpentCard category={category} />
 
           <div className="grid gap-6 lg:grid-cols-2">
             <Card>
@@ -142,6 +145,51 @@ export function StatsPage() {
         </>
       )}
     </PageContainer>
+  )
+}
+
+interface TimeRow { category: MediaCategory; minutes: number; counted: number; manual: number; missing: number }
+
+/** MAL/Shikimori-style time spent: total days + per category. */
+function TimeSpentCard({ category }: { category: 'all' | MediaCategory }) {
+  const q = useQuery({
+    queryKey: ['stats', 'time'],
+    queryFn: async () => unwrap(await supabase.rpc('time_stats'), 'time stats') as TimeRow[],
+  })
+  if (q.isError) return <ErrorState error={q.error} onRetry={() => void q.refetch()} />
+  const rows = (q.data ?? []).filter((r) => category === 'all' || r.category === category).filter((r) => r.minutes > 0 || r.missing > 0)
+  const total = rows.reduce((n, r) => n + Number(r.minutes), 0)
+  const missing = rows.reduce((n, r) => n + Number(r.missing), 0)
+  return (
+    <Card>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h2 className="text-[13px] font-semibold">Time spent</h2>
+          <div className="mt-1 text-3xl font-bold tabular-nums">{toDays(total).toLocaleString()} <span className="text-base font-medium text-fg-3">days</span></div>
+          <div className="text-xs text-fg-3">{formatDuration(total)} · estimated like MyAnimeList; your own times are used where set</div>
+        </div>
+      </div>
+      {rows.length > 0 && (
+        <ul className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          {rows.map((r) => {
+            const cfg = CATEGORY_CONFIG[r.category]
+            return (
+              <li key={r.category} className="flex items-center gap-3 rounded-lg border border-line px-3 py-2">
+                <cfg.icon className="size-4 shrink-0 text-accent-hover" />
+                <div className="min-w-0 flex-1">
+                  <div className="text-[13px] font-medium">{cfg.label}</div>
+                  <div className="text-[11px] text-fg-3">
+                    {formatDuration(Number(r.minutes))}{Number(r.manual) > 0 && ` · ${r.manual} set by you`}{Number(r.missing) > 0 && ` · ${r.missing} without length`}
+                  </div>
+                </div>
+                <div className="text-right text-lg font-bold tabular-nums">{toDays(Number(r.minutes))}<span className="ml-0.5 text-[11px] font-normal text-fg-3">d</span></div>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+      {missing > 0 && <p className="mt-3 text-[11px] text-fg-3">{missing} titles have progress but no episode length / runtime yet — “Fetch now” on their category usually fills it.</p>}
+    </Card>
   )
 }
 

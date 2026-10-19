@@ -123,7 +123,7 @@ describe('Backloggd adapter', () => {
 
   test('maps played game with initial playthrough and replays', () => {
     const h = by('2155')
-    expect(h.entry).toMatchObject({ status: 'completed', rating: 9, start_date: '2023-01-02', completion_date: '2023-02-10', is_favorite: true, review: 'Great run.' })
+    expect(h.entry).toMatchObject({ status: 'completed', rating: 9, start_date: '2023-01-02', completion_date: '2023-02-10', is_favorite: true, review: 'Great run.', time_spent_minutes: 51 * 60 })
     expect(h.sessions).toEqual([
       expect.objectContaining({ session_type: 'replay', status: 'completed', start_date: '2024-05-01', end_date: '2024-05-20', rating: 10 }),
       expect.objectContaining({ session_type: 'replay', status: 'abandoned', start_date: '2025-01-01', end_date: null }),

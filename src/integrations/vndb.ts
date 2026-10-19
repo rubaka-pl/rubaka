@@ -4,7 +4,7 @@ import { cached, providerJson } from './http'
 import type { ProviderResult } from './types'
 
 const ENDPOINT = 'https://api.vndb.org/kana/vn'
-export const VN_FIELDS = 'title,alttitle,titles.title,titles.lang,titles.main,titles.latin,aliases,released,image.url,image.sexual,developers.name,platforms,tags.name,tags.rating,tags.spoiler,tags.category,description,olang,devstatus,relations.id,relations.relation,relations.title,relations.image.url,extlinks.url,extlinks.name'
+export const VN_FIELDS = 'title,alttitle,titles.title,titles.lang,titles.main,titles.latin,aliases,released,image.url,image.sexual,developers.name,platforms,tags.name,tags.rating,tags.spoiler,tags.category,description,olang,devstatus,relations.id,relations.relation,relations.title,relations.image.url,extlinks.url,extlinks.name,length,length_minutes'
 
 export interface VnItem {
   id: string
@@ -20,6 +20,10 @@ export interface VnItem {
   description: string | null
   olang: string
   devstatus: number
+  /** 1 very short … 5 very long (null if unknown). */
+  length?: number | null
+  /** Average play time from user votes, minutes. */
+  length_minutes?: number | null
   relations: { id: string; relation: string; title: string; image: { url: string } | null }[]
 }
 
@@ -34,6 +38,13 @@ function isoOrNull(d: string | null): string | null {
 }
 
 const DEVSTATUS: Record<number, ReleaseStatus> = { 0: 'finished', 1: 'releasing', 2: 'cancelled' }
+
+/** Vote average, else the middle of the VNDB length class (very short … very long). */
+export function vnLengthMinutes(v: Pick<VnItem, 'length' | 'length_minutes'>): number | null {
+  if (v.length_minutes && v.length_minutes > 0) return Math.round(v.length_minutes)
+  const mid: Record<number, number> = { 1: 60, 2: 360, 3: 1200, 4: 2400, 5: 3600 }
+  return v.length ? mid[v.length] ?? null : null
+}
 
 export function mapVn(v: VnItem): ProviderResult {
   const titles: { title: string; kind: TitleKind }[] = []
@@ -66,6 +77,7 @@ export function mapVn(v: VnItem): ProviderResult {
     details: {
       developers: v.developers.map((d) => d.name),
       platforms: v.platforms,
+      ...(vnLengthMinutes(v) ? { length_minutes: vnLengthMinutes(v) } : {}),
       tags: v.tags.filter((t) => t.spoiler === 0 && t.rating >= 1.5).slice(0, 15).map((t) => t.name),
     },
     relations: v.relations.map((r) => ({

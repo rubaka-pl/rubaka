@@ -106,6 +106,8 @@ export interface LibraryEntry {
   wishlist_priority: number | null
   notes: string | null
   review: string | null
+  /** Manual time spent (minutes); overrides the estimate. */
+  time_spent_minutes: number | null
   added_at: string
   completed_at: string | null
   last_activity_at: string
@@ -117,7 +119,7 @@ export interface LibraryEntry {
 export type EntryPatch = Partial<Pick<LibraryEntry,
   | 'status' | 'rating' | 'episodes_watched' | 'chapters_read' | 'volumes_read' | 'current_season'
   | 'current_episode' | 'routes_completed' | 'endings_completed' | 'start_date' | 'completion_date'
-  | 'imported_repeat_count' | 'is_favorite' | 'wishlisted_at' | 'wishlist_priority' | 'notes' | 'review'>>
+  | 'imported_repeat_count' | 'is_favorite' | 'wishlisted_at' | 'wishlist_priority' | 'notes' | 'review' | 'time_spent_minutes'>>
 
 /** Row returned by the library_query RPC. */
 export interface LibraryItem {

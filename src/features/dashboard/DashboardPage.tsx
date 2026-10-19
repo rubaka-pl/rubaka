@@ -6,7 +6,8 @@
  * Copyright (c) 2026 RUBAKA
  */
 import { useQuery } from '@tanstack/react-query'
-import { ChevronRight, FileUp, History, Plus } from 'lucide-react'
+import { ChevronLeft, ChevronRight, FileUp, History, Plus } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router'
 import { PageContainer } from '@/components/layout/AppShell'
 import { PosterCard, usePosterColumns } from '@/components/media/PosterCard'
@@ -184,17 +185,40 @@ function Shelf({ query, empty, size }: { query: { data?: LibraryItem[]; isLoadin
   const perRow = usePerRow()
   const { ref, cols, variant } = usePosterColumns(size === 'lg' ? perRow : Math.max(3, Math.round(perRow / 2)))
   const width = { width: `calc((100% - ${(cols - 1) * 12}px) / ${cols})` }
+  // Scroll affordance: arrows + edge fades appear only when there is more to see.
+  const scroller = useRef<HTMLDivElement | null>(null)
+  const [edges, setEdges] = useState({ left: false, right: false })
+  const updateEdges = useCallback(() => {
+    const el = scroller.current
+    if (!el) return
+    setEdges({ left: el.scrollLeft > 4, right: el.scrollLeft + el.clientWidth < el.scrollWidth - 4 })
+  }, [])
+  const setRefs = useCallback((el: HTMLDivElement | null) => {
+    scroller.current = el
+    ref(el)
+    if (el) requestAnimationFrame(updateEdges)
+  }, [ref, updateEdges])
+  useEffect(() => { requestAnimationFrame(updateEdges) }, [query.data, cols, updateEdges])
+  const page = (dir: 1 | -1) => scroller.current?.scrollBy({ left: dir * scroller.current.clientWidth * 0.85, behavior: 'smooth' })
+
   if (query.isError) return <ErrorState error={query.error} onRetry={() => void query.refetch()} />
   if (!query.isLoading && !query.data?.length) return <p className="rounded-lg border border-dashed border-line px-4 py-6 text-center text-[13px] text-fg-3">{empty} <Link to="/import" className="text-accent hover:underline"><Plus className="inline size-3" /> Import</Link></p>
+  const arrow = 'absolute top-[calc(50%-1.5rem)] z-10 flex size-9 -translate-y-1/2 items-center justify-center rounded-full border border-line-strong bg-surface/95 text-fg shadow-card backdrop-blur transition hover:bg-accent hover:text-white'
   return (
-    <div ref={ref} className="flex gap-3 overflow-x-auto pb-2 scrollbar-none" role="list">
-      {query.isLoading
-        ? Array.from({ length: cols }, (_, i) => <Skeleton key={i} className="aspect-[2/3] shrink-0 rounded-lg" style={width} />)
-        : query.data!.map((it, i) => (
-            <div key={it.entry_id} className="shrink-0" style={width} role="listitem">
-              <PosterCard item={it} variant={variant} showCategory={size === 'lg' && variant === 'grid'} eager={i < 8} />
-            </div>
-          ))}
+    <div className="relative">
+      <div ref={setRefs} onScroll={updateEdges} className="flex snap-x gap-3 overflow-x-auto scroll-smooth pb-2 scrollbar-none" role="list">
+        {query.isLoading
+          ? Array.from({ length: cols }, (_, i) => <Skeleton key={i} className="aspect-[2/3] shrink-0 rounded-lg" style={width} />)
+          : query.data!.map((it, i) => (
+              <div key={it.entry_id} className="shrink-0 snap-start" style={width} role="listitem">
+                <PosterCard item={it} variant={variant} showCategory={size === 'lg' && variant === 'grid'} eager={i < 8} />
+              </div>
+            ))}
+      </div>
+      {edges.left && <div className="pointer-events-none absolute inset-y-0 left-0 w-10 bg-gradient-to-r from-bg to-transparent" aria-hidden />}
+      {edges.right && <div className="pointer-events-none absolute inset-y-0 right-0 w-14 bg-gradient-to-l from-bg to-transparent" aria-hidden />}
+      {edges.left && <button type="button" className={cn(arrow, '-left-3')} onClick={() => page(-1)} aria-label="Scroll left"><ChevronLeft className="size-5" /></button>}
+      {edges.right && <button type="button" className={cn(arrow, '-right-3')} onClick={() => page(1)} aria-label="Scroll right"><ChevronRight className="size-5" /></button>}
     </div>
   )
 }

@@ -188,8 +188,25 @@ export async function searchIgdb(q: string): Promise<ProviderResult[]> {
 }
 
 export async function getIgdbById(id: number): Promise<ProviderResult | null> {
-  return cached('igdb', `id:${id}`, async () => {
-    const r = await invoke<IgdbGame[]>('igdb', { endpoint: 'games', query: `${IGDB_FIELDS} where id = ${Math.trunc(id)};` })
-    return r[0] ? mapGame(r[0]) : null
+  const r = await cached('igdb', `id:${id}`, async () => {
+    const g = await invoke<IgdbGame[]>('igdb', { endpoint: 'games', query: `${IGDB_FIELDS} where id = ${Math.trunc(id)};` })
+    return g[0] ? mapGame(g[0]) : null
   })
+  return r ? withTimeToBeat(r) : null
+}
+
+/**
+ * IGDB "Time to Beat" (player-submitted, like HowLongToBeat): adds
+ * details.time_to_beat_minutes from the "normally" value (falls back to "hastily").
+ */
+export async function withTimeToBeat(r: ProviderResult): Promise<ProviderResult> {
+  if (r.provider !== 'igdb' || r.details?.time_to_beat_minutes) return r
+  try {
+    const ttb = await cached('igdb', `ttb:${r.externalId}`, async () =>
+      (await invoke<{ normally?: number; hastily?: number }[]>('igdb', { endpoint: 'game_time_to_beats', query: `fields normally,hastily,completely; where game_id = ${Math.trunc(Number(r.externalId))};` }))[0] ?? {})
+    const seconds = ttb.normally ?? ttb.hastily
+    return seconds ? { ...r, details: { ...r.details, time_to_beat_minutes: Math.round(seconds / 60) } } : r
+  } catch {
+    return r // time to beat is optional; never block enrichment on it
+  }
 }
