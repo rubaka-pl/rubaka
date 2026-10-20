@@ -134,7 +134,8 @@ export function parseBackloggd(text: string, options: Record<string, string>): P
       media: { category: 'game', title: g.name.trim() },
       titles: [],
       genres: [],
-      external_ids: [{ provider: 'backloggd', external_id: id }],
+      // Backloggd game ids are IGDB ids: metadata is then fetched by id, never guessed by title.
+      external_ids: [{ provider: 'backloggd', external_id: id }, ...(/^\d+$/.test(id) ? [{ provider: 'igdb' as const, external_id: id }] : [])],
       entry: {
         status,
         rating: toHalf(log.rating) ?? toHalf(first?.rating),
