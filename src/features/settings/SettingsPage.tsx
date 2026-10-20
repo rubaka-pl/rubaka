@@ -65,6 +65,14 @@ export function SettingsPage() {
           <Switch checked={s.blurAdult} onCheckedChange={(v) => void save({ blurAdult: v })} />
           Blur covers marked 18+ by the metadata source
         </label>
+        <label className="flex items-center gap-2 text-[13px]">
+          <Switch checked={s.blurDoujinshi} onCheckedChange={(v) => void save({ blurDoujinshi: v })} />
+          Blur Doujinshi covers (they unblur on hover)
+        </label>
+        <label className="flex items-center gap-2 text-[13px]">
+          <Switch checked={s.showAdultOnDashboard} onCheckedChange={(v) => void save({ showAdultOnDashboard: v })} />
+          Show Doujinshi on the dashboard
+        </label>
         <Field label="Theme" htmlFor="set-theme">
           <Select id="set-theme" value={s.theme} onValueChange={(v) => void save({ theme: v as Settings['theme'] })} className="w-48" options={[{ value: 'dark', label: 'Dark' }, { value: 'light', label: 'Light' }]} />
         </Field>

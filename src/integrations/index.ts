@@ -30,6 +30,8 @@ export const CATEGORY_PROVIDERS: Record<MediaCategory, SearchProvider[]> = {
   tv_series: ['tvmaze', 'tmdb'],
   animated_series: ['tvmaze', 'tmdb'],
   game: ['igdb'],
+  // No public metadata source: doujinshi come from the nhentai favourites import or are added by hand.
+  doujinshi: [],
 }
 
 export async function availableProviders(category: MediaCategory): Promise<{ provider: SearchProvider; available: boolean }[]> {

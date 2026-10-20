@@ -1,5 +1,6 @@
 import { ImageOff } from 'lucide-react'
 import { useState } from 'react'
+import { useSettings } from '@/features/settings/settings-store'
 import { CATEGORY_CONFIG } from '@/lib/categories'
 import { cn } from '@/lib/utils'
 import type { MediaCategory } from '@/types/db'
@@ -18,6 +19,9 @@ export function PosterImage({ src, title, category, className, eager, sizes }: {
   const failed = !!src && failedSrc === src
   const loaded = !!src && loadedSrc === src
   const Icon = category ? CATEGORY_CONFIG[category].icon : ImageOff
+  // 18+ categories (Doujinshi) stay blurred until hovered, unless turned off in Settings.
+  const blurAdult = useSettings().blurDoujinshi
+  const blur = !!category && CATEGORY_CONFIG[category].adult === true && blurAdult
 
   return (
     <div className={cn('relative aspect-[2/3] overflow-hidden rounded-md bg-surface-2', className)}>
@@ -31,7 +35,7 @@ export function PosterImage({ src, title, category, className, eager, sizes }: {
           referrerPolicy="no-referrer"
           onLoad={() => setLoadedSrc(src)}
           onError={() => setFailedSrc(src)}
-          className={cn('size-full object-cover transition-opacity duration-300', loaded ? 'opacity-100' : 'opacity-0')}
+          className={cn('size-full object-cover transition-[opacity,filter] duration-300', loaded ? 'opacity-100' : 'opacity-0', blur && 'scale-110 blur-xl hover:scale-100 hover:blur-0')}
         />
       ) : (
         <div className="flex size-full flex-col items-center justify-center gap-2 bg-gradient-to-br from-surface-2 to-surface-hover p-2 text-center">

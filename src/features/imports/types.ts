@@ -7,7 +7,7 @@
  */
 import type { EntryPatch, ExternalProvider, LibraryStatus, MediaCategory, MediaDetails, SessionStatus, SessionType, TitleKind } from '@/types/db'
 
-export type ImportSource = 'imdb_csv' | 'mal_xml' | 'backloggd_json' | 'vndb_api'
+export type ImportSource = 'imdb_csv' | 'mal_xml' | 'backloggd_json' | 'vndb_api' | 'nhentai_json'
 
 /**
  * Normalized record produced by an adapter. This is exactly what the

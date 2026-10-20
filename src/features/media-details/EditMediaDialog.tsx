@@ -23,6 +23,7 @@ import type { Media, MediaCategory, MediaTitle, TitleKind } from '@/types/db'
 const CREDIT_KEYS: Record<MediaCategory, string[]> = {
   anime: ['studios'], manga: ['authors', 'artists'], novel: ['authors', 'publishers'], visual_novel: ['developers', 'publishers', 'platforms'],
   movie: ['directors', 'cast'], tv_series: ['creators', 'networks', 'cast'], animated_series: ['creators', 'networks', 'cast'], game: ['developers', 'publishers', 'platforms'],
+  doujinshi: ['artists', 'groups', 'parodies', 'characters'],
 }
 const KINDS: TitleKind[] = ['english', 'romaji', 'japanese', 'native', 'russian', 'synonym', 'other']
 const num = (s: string) => (s.trim() === '' ? null : Math.trunc(Number(s)))

@@ -35,11 +35,15 @@ export function ShareSettings() {
 
   const url = shareUrl(link.token)
   const cats = link.categories
+  // No explicit choice (null) = every category except 18+ ones.
+  const defaults = CATEGORY_LIST.filter((x) => !x.adult).map((x) => x.id)
+  const shown = (c: MediaCategory) => (cats ? cats.includes(c) : defaults.includes(c))
   const toggleCat = (c: MediaCategory, on: boolean) => {
-    const cur = cats ?? CATEGORY_LIST.map((x) => x.id)
+    const cur = cats ?? defaults
     const next = on ? Array.from(new Set([...cur, c])) : cur.filter((x) => x !== c)
     if (!next.length) return toast('Keep at least one category')
-    m.update.mutate({ token: link.token, patch: { categories: next.length === CATEGORY_LIST.length ? null : next } })
+    const isDefault = next.length === defaults.length && defaults.every((x) => next.includes(x))
+    m.update.mutate({ token: link.token, patch: { categories: isDefault ? null : next } })
   }
   const copy = () => navigator.clipboard.writeText(url).then(() => toast.success('Link copied'), () => toast.error('Copy failed — select the link and copy it'))
 
@@ -64,8 +68,8 @@ export function ShareSettings() {
         <div className="flex flex-wrap gap-x-4 gap-y-2">
           {CATEGORY_LIST.map((c) => (
             <label key={c.id} className="flex items-center gap-1.5 text-[13px]">
-              <Checkbox checked={!cats || cats.includes(c.id)} onCheckedChange={(v) => toggleCat(c.id, v === true)} />
-              {c.label}
+              <Checkbox checked={shown(c.id)} onCheckedChange={(v) => toggleCat(c.id, v === true)} />
+              {c.label}{c.adult ? ' (18+)' : ''}
             </label>
           ))}
         </div>

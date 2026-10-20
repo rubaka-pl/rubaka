@@ -54,6 +54,10 @@ export const settingsSchema = z.object({
   hiddenWishlistTabs: z.array(z.enum(CATEGORIES)).catch([]).default([]),
   /** Categories whose library page hides the Planning (Plan to Watch / Backlog) tab. */
   hiddenPlanningTabs: z.array(z.enum(CATEGORIES)).catch([]).default([]),
+  /** Doujinshi covers blurred until hovered. */
+  blurDoujinshi: z.boolean().catch(true).default(true),
+  /** Show Doujinshi on the dashboard (tiles, shelves, activity). */
+  showAdultOnDashboard: z.boolean().catch(false).default(false),
   /** Sidebar mascot (desktop): the built-in dancer, the owner's own GIFs (random per page), or none. */
   mascot: z.enum(['dancer', 'custom', 'off']).catch('dancer').default('dancer'),
   /** Storage paths of uploaded mascots (media-assets/mascot/...). */

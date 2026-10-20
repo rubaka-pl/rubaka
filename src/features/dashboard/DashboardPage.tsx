@@ -16,14 +16,14 @@ import { PosterImage } from '@/components/media/PosterImage'
 import { StarRating } from '@/components/ratings/StarRating'
 import { Button } from '@/components/ui/button'
 import { EmptyState, ErrorState, ProgressBar, SectionHeader, Skeleton } from '@/components/ui/misc'
-import { usePerRow } from '@/features/settings/settings-store'
+import { usePerRow, useSettings } from '@/features/settings/settings-store'
 import { canIncrement, useEntryActions } from '@/features/tracking/hooks'
 import { fetchLibrary, useActivity, useDashboardSummary, type LibraryParams } from '@/features/tracking/api'
 import { CATEGORY_CONFIG, primaryProgress } from '@/lib/categories'
 import { timeAgo } from '@/lib/dates'
 import { posterSrc } from '@/lib/supabase'
 import { cn } from '@/lib/utils'
-import type { LibraryItem } from '@/types/db'
+import type { LibraryItem, MediaCategory } from '@/types/db'
 import { activityText } from './activity-text'
 import { AiringCalendar } from './AiringCalendar'
 
@@ -57,8 +57,16 @@ export function DashboardPage() {
   const current = useCurrent()
   const added = useItems('added', { sort: 'added_desc', limit: 10 })
   const completed = useItems('completed', { statuses: ['completed'], sort: 'completed_desc', limit: 10 })
-  const activity = useActivity(8)
+  const activity = useActivity(12)
   const isEmpty = summary.data?.every((c) => c.total === 0)
+  // 18+ categories stay off the dashboard unless enabled in Settings.
+  const showAdult = useSettings().showAdultOnDashboard
+  const ok = (c: MediaCategory | null | undefined) => showAdult || !c || !CATEGORY_CONFIG[c].adult
+  const tiles = summary.data?.filter((c) => ok(c.category))
+  const cur = { ...current, data: current.data?.filter((i) => ok(i.category)) }
+  const recentAdded = added.data?.items.filter((i) => ok(i.category))
+  const recentDone = completed.data?.items.filter((i) => ok(i.category))
+  const acts = activity.data?.filter((a) => ok(a.category)).slice(0, 8)
 
   return (
     <PageContainer className="flex flex-col gap-7">
@@ -74,7 +82,7 @@ export function DashboardPage() {
       <section aria-label="Library summary">
         {summary.isError ? <ErrorState error={summary.error} onRetry={() => void summary.refetch()} /> : (
           <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 xl:grid-cols-8">
-            {(summary.data ?? Array.from({ length: 8 }, () => null)).map((c, i) => {
+            {(tiles ?? Array.from({ length: 8 }, () => null)).map((c, i) => {
               if (!c) return <Skeleton key={i} className="h-[92px]" />
               const cfg = CATEGORY_CONFIG[c.category]
               return (
@@ -100,11 +108,11 @@ export function DashboardPage() {
         />
       ) : (
         <>
-          {current.data?.[0] && <ContinueHero item={current.data[0]} />}
+          {cur.data?.[0] && <ContinueHero item={cur.data[0]} />}
 
           <section aria-labelledby="current-h">
             <SectionHeader title={<span id="current-h">Currently Watching / Reading / Playing</span>} />
-            <Shelf query={current} empty="Nothing in progress. Start something from your wishlist!" size="lg" />
+            <Shelf query={cur} empty="Nothing in progress. Start something from your wishlist!" size="lg" />
           </section>
 
           <section aria-labelledby="airing-h">
@@ -115,11 +123,11 @@ export function DashboardPage() {
           <div className="grid gap-7 xl:grid-cols-2">
             <section aria-labelledby="added-h">
               <SectionHeader title={<span id="added-h">Recently Added</span>} />
-              <Shelf query={{ ...added, data: added.data?.items }} empty="No titles yet." size="sm" />
+              <Shelf query={{ ...added, data: recentAdded }} empty="No titles yet." size="sm" />
             </section>
             <section aria-labelledby="completed-h">
               <SectionHeader title={<span id="completed-h">Recently Completed</span>} />
-              <Shelf query={{ ...completed, data: completed.data?.items }} empty="Nothing completed yet." size="sm" />
+              <Shelf query={{ ...completed, data: recentDone }} empty="Nothing completed yet." size="sm" />
             </section>
           </div>
 
@@ -128,11 +136,11 @@ export function DashboardPage() {
               <SectionHeader title={<span id="activity-h">Your Activity</span>} action={<Link to="/stats" className="flex items-center text-xs text-accent hover:text-accent-hover">Statistics <ChevronRight className="size-3.5" /></Link>} />
               {activity.isError ? <ErrorState error={activity.error} onRetry={() => void activity.refetch()} /> : activity.isLoading ? (
                 <div className="flex flex-col gap-2">{Array.from({ length: 5 }, (_, i) => <Skeleton key={i} className="h-10" />)}</div>
-              ) : !activity.data?.length ? (
+              ) : !acts?.length ? (
                 <EmptyState icon={<History />} title="No activity yet" description="Ratings, progress and status changes will appear here." className="py-8" />
               ) : (
                 <ul className="divide-y divide-line rounded-lg border border-line bg-surface">
-                  {activity.data.map((a) => {
+                  {acts.map((a) => {
                     const cfg = a.category ? CATEGORY_CONFIG[a.category] : null
                     const Icon = cfg?.icon ?? FileUp
                     const rating = a.action === 'rating_changed' ? (a.details.to as number | null) : null

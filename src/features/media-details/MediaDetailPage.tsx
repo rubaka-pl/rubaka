@@ -81,6 +81,7 @@ function Detail({ d }: { d: MediaDetail }) {
     cfg.progress === 'chapters' && media.total_chapters ? `${media.total_chapters} chapters` : null,
     cfg.volumes && media.total_volumes ? `${media.total_volumes} volumes` : null,
     cfg.seasons && media.total_seasons ? `${media.total_seasons} seasons` : null,
+    typeof (media.details as { pages?: number })?.pages === 'number' ? `${(media.details as { pages: number }).pages} pages` : null,
     media.details?.studios?.[0] ?? media.details?.developers?.[0] ?? media.details?.authors?.[0] ?? media.details?.directors?.[0],
     media.release_status ? RELEASE_STATUS_LABEL[media.release_status] : null,
   ].filter(Boolean)

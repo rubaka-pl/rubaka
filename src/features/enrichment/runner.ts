@@ -136,6 +136,8 @@ export async function findMetadata(m: MediaLite, ids: Pick<MediaExternalId, 'pro
       const pick = pickByTitle(m, await searchIgdb(m.title))
       return pick.status === 'matched' ? { ...pick, result: await withTimeToBeat(pick.result) } : pick
     }
+    case 'doujinshi':
+      return { status: 'unresolved', message: 'Doujinshi have no metadata provider' }
   }
 }
 

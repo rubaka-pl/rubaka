@@ -10,7 +10,7 @@
 // project builds without a live database for `supabase gen types`.
 
 export const CATEGORIES = [
-  'anime', 'manga', 'novel', 'visual_novel', 'movie', 'tv_series', 'animated_series', 'game',
+  'anime', 'manga', 'novel', 'visual_novel', 'movie', 'tv_series', 'animated_series', 'game', 'doujinshi',
 ] as const
 export type MediaCategory = (typeof CATEGORIES)[number]
 
@@ -27,7 +27,7 @@ export type RelationType =
 
 export type ExternalProvider =
   | 'mal_anime' | 'mal_manga' | 'anilist' | 'kitsu' | 'imdb' | 'tmdb_movie' | 'tmdb_tv' | 'tvmaze'
-  | 'vndb' | 'igdb' | 'rawg' | 'backloggd' | 'openlibrary' | 'mangadex' | 'other'
+  | 'vndb' | 'igdb' | 'rawg' | 'backloggd' | 'openlibrary' | 'mangadex' | 'nhentai' | 'other'
 
 export type TitleKind = 'english' | 'romaji' | 'japanese' | 'native' | 'russian' | 'synonym' | 'other'
 

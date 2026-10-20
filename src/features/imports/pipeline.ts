@@ -15,9 +15,10 @@ import { backloggdAdapter } from './adapters/backloggd'
 import { imdbAdapter } from './adapters/imdb'
 import { malAdapter } from './adapters/mal'
 import { vndbAdapter } from './adapters/vndb'
+import { nhentaiAdapter } from './adapters/nhentai'
 import type { ImportAdapter, InvalidRecord, NormalizedRecord, ParseResult } from './types'
 
-export const ADAPTERS: ImportAdapter[] = [malAdapter, imdbAdapter, backloggdAdapter, vndbAdapter]
+export const ADAPTERS: ImportAdapter[] = [malAdapter, imdbAdapter, backloggdAdapter, vndbAdapter, nhentaiAdapter]
 
 export async function readImportFile(file: File): Promise<string> {
   const isGzip = /\.gz$/i.test(file.name) || file.type === 'application/gzip' || file.type === 'application/x-gzip'

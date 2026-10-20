@@ -6,6 +6,7 @@
  * Copyright (c) 2026 RUBAKA
  */
 import {
+  BookHeart,
   BookOpen, BookOpenText, Clapperboard, Film, Gamepad2, MonitorPlay, Sparkles, Tv,
   type LucideIcon,
 } from 'lucide-react'
@@ -35,6 +36,8 @@ export interface CategoryConfig {
   repeatLabel: string
   /** Name of the wishlist in this category (default "Wishlist"). */
   wishlistLabel?: string
+  /** 18+: covers blurred unless allowed, hidden from the dashboard and share links by default. */
+  adult?: boolean
   formats: { value: string; label: string }[]
 }
 
@@ -113,6 +116,15 @@ export const CATEGORY_CONFIG: Record<MediaCategory, CategoryConfig> = {
     formats: [
       { value: 'game', label: 'Game' }, { value: 'dlc', label: 'DLC' }, { value: 'expansion', label: 'Expansion' },
       { value: 'remake', label: 'Remake' }, { value: 'remaster', label: 'Remaster' }, { value: 'other', label: 'Other' },
+    ],
+  },
+  doujinshi: {
+    id: 'doujinshi', slug: 'doujinshi', label: 'Doujinshi', singular: 'Doujinshi', icon: BookHeart, adult: true,
+    progress: 'single', volumes: false, seasons: false, sessionType: 'reread',
+    activeLabel: 'Reading', completedLabel: 'Read', planningLabel: 'Plan to Read', repeatLabel: 'Reread',
+    formats: [
+      { value: 'doujinshi', label: 'Doujinshi' }, { value: 'one_shot', label: 'One-shot' },
+      { value: 'artist_cg', label: 'Artist CG' }, { value: 'other', label: 'Other' },
     ],
   },
 }

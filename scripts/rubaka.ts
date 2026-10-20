@@ -63,7 +63,7 @@ const { getTmdbMovie, getTmdbTv, getIgdbById } = await import('../src/integratio
 import type { ProviderResult } from '../src/integrations/types'
 import type { LibraryItem, LibraryStatus, MediaCategory } from '../src/types/db'
 
-const CATS: MediaCategory[] = ['anime', 'manga', 'novel', 'visual_novel', 'movie', 'tv_series', 'animated_series', 'game']
+const CATS: MediaCategory[] = ['anime', 'manga', 'novel', 'visual_novel', 'movie', 'tv_series', 'animated_series', 'game', 'doujinshi']
 const STATUSES: LibraryStatus[] = ['planning', 'in_progress', 'completed', 'on_hold', 'dropped']
 const FORMATS: Record<MediaCategory, string[]> = {
   anime: ['tv', 'tv_short', 'movie', 'ova', 'ona', 'special', 'music', 'other'],
@@ -74,6 +74,7 @@ const FORMATS: Record<MediaCategory, string[]> = {
   tv_series: ['series', 'mini_series', 'special', 'other'],
   animated_series: ['series', 'mini_series', 'special', 'other'],
   game: ['game', 'dlc', 'expansion', 'remake', 'remaster', 'other'],
+  doujinshi: ['doujinshi', 'one_shot', 'artist_cg', 'other'],
 }
 const APP = process.env.RUBAKA_APP_URL ?? 'http://localhost:5173'
 

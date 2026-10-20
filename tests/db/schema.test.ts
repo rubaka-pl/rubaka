@@ -325,10 +325,10 @@ describe('statistics', () => {
     expect(Number(s.library_stats.overview.completed_without_date)).toBeGreaterThan(0)
   })
 
-  test('dashboard summary lists all eight categories', async () => {
+  test('dashboard summary lists every category (enum order)', async () => {
     const s = await one<{ dashboard_summary: { category: string }[] }>(`select dashboard_summary()`)
     expect(s.dashboard_summary.map((c) => c.category)).toEqual(
-      ['anime', 'manga', 'novel', 'visual_novel', 'movie', 'tv_series', 'animated_series', 'game'])
+      ['anime', 'manga', 'doujinshi', 'novel', 'visual_novel', 'movie', 'tv_series', 'animated_series', 'game'])
   })
 })
 
@@ -593,5 +593,28 @@ test('franchises list works you do not have; a lone title with an unseen sequel 
   const s2 = await addTitle(fresh, { category: 'anime', title: 'Show S2' })
   await q(`insert into media_external_ids (media_id, provider, external_id) values ($1, 'anilist', '2')`, [s2.mediaId])
   expect((await q(`select * from franchise_missing($1)`, [fid])).length).toBe(1)
+  await fresh.close()
+})
+
+test('doujinshi: own category, never queued for metadata, hidden from share links unless ticked', async () => {
+  const fresh = await createTestDb()
+  const q = async <T = Record<string, unknown>>(sql: string, p: unknown[] = []) => as(fresh, OWNER, async (tx) => (await tx.query<T>(sql, p)).rows)
+  const d = await addTitle(fresh, { category: 'doujinshi', title: 'Some doujin', format: 'doujinshi', details: { pages: 30 } }, { status: 'completed' })
+  await addTitle(fresh, { category: 'anime', title: 'Normal' }, { status: 'completed' })
+  await expect(addTitle(fresh, { category: 'doujinshi', title: 'Bad', format: 'tv' })).rejects.toThrow(/media_format_valid/)
+  await q(`insert into media_external_ids (media_id, provider, external_id) values ($1, 'nhentai', '123')`, [d.mediaId])
+  await q(`select enqueue_enrichment()`)
+  expect((await q(`select * from metadata_enrichment_jobs where media_id = $1`, [d.mediaId])).length).toBe(0)
+  const t = ((await q<{ t: { category: string; minutes: number }[] }>(`select time_stats() t`))[0].t).find((x) => x.category === 'doujinshi')
+  expect(Number(t?.minutes)).toBe(15) // 30 pages × 0.5 min
+  await q(`insert into tracking_sessions (entry_id, session_type, status) values ($1, 'reread', 'completed')`, [d.entryId])
+
+  const token = (await q<{ token: string }>(`insert into share_links default values returning token`))[0].token
+  const anon = <T,>(sql: string, p: unknown[]) => as(fresh, 'anon', async (tx) => (await tx.query<{ r: T }>(sql, p)).rows[0].r)
+  const prof = await anon<{ categories: { category: string }[] }>(`select public_profile($1) r`, [token])
+  expect(prof.categories.map((c) => c.category)).toEqual(['anime'])
+  expect(await anon(`select public_library($1, 'doujinshi') r`, [token])).toBeNull()
+  await q(`update share_links set categories = array['anime', 'doujinshi']::media_category[]`)
+  expect((await anon<{ total: number }>(`select public_library($1, 'doujinshi') r`, [token])).total).toBe(1)
   await fresh.close()
 })

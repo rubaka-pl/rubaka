@@ -64,6 +64,7 @@ const CREDIT_FIELD: Record<MediaCategory, { key: string; label: string }> = {
   tv_series: { key: 'creators', label: 'Creators' },
   animated_series: { key: 'creators', label: 'Creators' },
   game: { key: 'developers', label: 'Developers' },
+  doujinshi: { key: 'artists', label: 'Artists / circles' },
 }
 
 const splitList = (s?: string) => (s ?? '').split(/[,\n]/).map((x) => x.trim()).filter(Boolean)
