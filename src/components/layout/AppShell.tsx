@@ -17,6 +17,7 @@ import { useSettingsStore } from '@/features/settings/settings-store'
 import { CATEGORY_LIST } from '@/lib/categories'
 import { cn } from '@/lib/utils'
 import { Logo } from './Logo'
+import { Mascot } from './Mascot'
 
 interface NavItem { to: string; label: string; icon: React.ComponentType<{ className?: string }> }
 
@@ -73,6 +74,8 @@ function SidebarContent({ collapsed, onNavigate, onToggle }: { collapsed: boolea
         <div className="mx-2 h-px bg-line" />
         <NavGroup items={TOOLS} collapsed={collapsed} onNavigate={onNavigate} />
       </nav>
+      {/* Desktop only, and only when there is room for it. */}
+      {!collapsed && !onNavigate && <Mascot className="hidden shrink-0 pb-1 pt-2 lg:block [@media(max-height:820px)]:hidden" />}
       {!collapsed && (
         <footer className="shrink-0 px-4 py-4 text-[11px] leading-relaxed text-fg-3">
           <div className="font-semibold tracking-wider text-fg-2">RUBAKA</div>

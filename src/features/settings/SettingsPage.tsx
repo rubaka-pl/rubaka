@@ -21,7 +21,7 @@ import { invalidateLibrary } from '@/features/tracking/api'
 import { getProxyStatus } from '@/integrations/proxied'
 import { CATEGORY_LIST } from '@/lib/categories'
 import { formatDate, formatTimestamp, TIMEZONES } from '@/lib/dates'
-import { friendlyError, supabase, unwrap } from '@/lib/supabase'
+import { assetUrl, friendlyError, supabase, unwrap } from '@/lib/supabase'
 import { downloadFile } from '@/lib/utils'
 import type { MediaCategory } from '@/types/db'
 import { backupToCsv, currentCounts, exportBackup, parseBackup, restoreBackup, type Backup } from './backup'
@@ -68,6 +68,7 @@ export function SettingsPage() {
         <Field label="Theme" htmlFor="set-theme">
           <Select id="set-theme" value={s.theme} onValueChange={(v) => void save({ theme: v as Settings['theme'] })} className="w-48" options={[{ value: 'dark', label: 'Dark' }, { value: 'light', label: 'Light' }]} />
         </Field>
+        <MascotSettings />
       </Section>
 
       <Section title="Interface" description="Defaults for library pages. View mode can also be changed per category.">
@@ -368,5 +369,67 @@ function DeleteLibrary() {
         <Input className="mt-3" value={text} onChange={(e) => setText(e.target.value)} aria-label="Confirmation text" autoComplete="off" />
       </ConfirmDialog>
     </>
+  )
+}
+
+/** Sidebar mascot: built-in dancer, your own (transparent) GIFs / animated WebPs in rotation, or off. */
+function MascotSettings() {
+  const s = useSettings()
+  const [busy, setBusy] = useState(false)
+  const upload = async (files: FileList | null) => {
+    const list = Array.from(files ?? [])
+    if (!list.length) return
+    setBusy(true)
+    const added: string[] = []
+    try {
+      for (const file of list) {
+        if (!['image/gif', 'image/webp', 'image/png'].includes(file.type)) { toast.error(`${file.name}: use a GIF, animated WebP or APNG.`); continue }
+        if (file.size > 5 * 1024 * 1024) { toast.error(`${file.name}: 5 MB at most.`); continue }
+        // Uploaded as is (no re-encoding), so the animation and transparency survive.
+        const ext = file.type === 'image/gif' ? 'gif' : file.type === 'image/webp' ? 'webp' : 'png'
+        const path = `mascot/${crypto.randomUUID()}.${ext}`
+        const { error } = await supabase.storage.from('media-assets').upload(path, file, { contentType: file.type, cacheControl: '31536000' })
+        if (error) throw error
+        added.push(path)
+      }
+    } catch (e) {
+      toast.error(/mime|type/i.test(String((e as Error).message)) ? 'GIFs need migration 13 (mascot_gif) in Supabase. WebP/APNG work already.' : friendlyError(e))
+    } finally {
+      if (added.length) {
+        await saveSettings({ mascot: 'custom', mascotPaths: [...s.mascotPaths, ...added] })
+        toast.success(`Added ${added.length} mascot${added.length > 1 ? 's' : ''}`)
+      }
+      setBusy(false)
+    }
+  }
+  const remove = async (path: string) => {
+    const rest = s.mascotPaths.filter((p) => p !== path)
+    await saveSettings({ mascotPaths: rest, ...(rest.length ? {} : { mascot: 'dancer' as const }) })
+    void supabase.storage.from('media-assets').remove([path])
+  }
+  return (
+    <Field label="Sidebar mascot (desktop)" htmlFor="set-mascot" hint="Your own GIFs change at random on every page. Click the mascot for a spin.">
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <Select id="set-mascot" value={s.mascot} className="w-48" onValueChange={(v) => void saveSettings({ mascot: v as Settings['mascot'] })}
+            options={[{ value: 'dancer', label: 'Dancing chibi' }, ...(s.mascotPaths.length ? [{ value: 'custom', label: `My GIFs (${s.mascotPaths.length})` }] : []), { value: 'off', label: 'Off' }]} />
+          <label className={`inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md border border-line px-3 text-[13px] hover:bg-surface-hover ${busy ? 'pointer-events-none opacity-60' : ''}`}>
+            {busy ? <LoaderCircle className="size-4 animate-spin" /> : <Upload className="size-4" />} Upload GIFs
+            <input type="file" multiple accept="image/gif,image/webp,image/png" className="sr-only" onChange={(e) => { void upload(e.target.files); e.target.value = '' }} />
+          </label>
+        </div>
+        {s.mascotPaths.length > 0 && (
+          <ul className="flex flex-wrap gap-2">
+            {s.mascotPaths.map((p) => (
+              <li key={p} className="group relative size-16 rounded-md border border-line bg-surface-2 p-1">
+                <img src={assetUrl(p) ?? ''} alt="" className="size-full object-contain" loading="lazy" />
+                <button onClick={() => void remove(p)} aria-label="Remove mascot"
+                  className="absolute -right-1.5 -top-1.5 hidden size-5 items-center justify-center rounded-full bg-danger text-[11px] text-white group-hover:flex">×</button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </Field>
   )
 }
