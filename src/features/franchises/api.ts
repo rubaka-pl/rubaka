@@ -23,7 +23,16 @@ export const franchiseKeys = {
 export function useFranchiseList() {
   return useQuery({
     queryKey: franchiseKeys.list,
-    queryFn: async () => unwrap(await supabase.rpc('franchise_list'), 'franchises') as FranchiseSummary[],
+    // The API returns at most 1000 rows per request: page through all of them.
+    queryFn: async () => {
+      const out: FranchiseSummary[] = []
+      for (let from = 0; ; from += 1000) {
+        const rows = unwrap(await supabase.rpc('franchise_list').range(from, from + 999), 'franchises') as FranchiseSummary[]
+        out.push(...rows)
+        if (rows.length < 1000) break
+      }
+      return out
+    },
     staleTime: 30_000,
   })
 }
