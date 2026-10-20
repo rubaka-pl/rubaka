@@ -6,7 +6,6 @@
  * Copyright (c) 2026 RUBAKA
  */
 import { useState } from 'react'
-import { useLocation } from 'react-router'
 import { useSettings } from '@/features/settings/settings-store'
 import { assetUrl } from '@/lib/supabase'
 import { cn } from '@/lib/utils'
@@ -14,25 +13,25 @@ import { cn } from '@/lib/utils'
 /**
  * Sidebar mascot (desktop only): an original dancing chibi drawn in SVG with a
  * transparent background, or one of the owner's own GIFs / animated WebPs
- * from Settings → Appearance — a different random one after every navigation.
- * Click her for a spin. Still for reduced motion.
+ * from Settings → Appearance: a random one on load, and a click jumps to
+ * another random one (with a spin). Still for reduced motion.
  */
 export function Mascot({ className }: { className?: string }) {
   const s = useSettings()
-  const location = useLocation()
   const [spin, setSpin] = useState(0)
+  // Random start; every click moves to another random one.
+  const [seed] = useState(() => Math.floor(Math.random() * 1e9))
   if (s.mascot === 'off') return null
-  // location.key is a fresh random id on every navigation: hash it to pick one.
   const paths = s.mascotPaths
   const fixed = !s.mascotRandom && s.mascotPick && paths.includes(s.mascotPick) ? s.mascotPick : null
-  const pick = fixed ?? (paths.length ? paths[hash(location.key + spin) % paths.length] : null)
+  const pick = fixed ?? (paths.length ? paths[nth(seed, spin, paths.length)] : null)
   // ?v= busts the year-long cache when mascots are re-encoded in place.
   const custom = s.mascot === 'custom' && pick ? `${assetUrl(pick)}?v=2` : null
   return (
     <button
       type="button"
       onClick={() => setSpin((n) => n + 1)}
-      aria-label="Mascot — click to spin"
+      aria-label="Mascot — click for another one"
       title="♪"
       className={cn('group mx-auto block w-full cursor-pointer select-none px-1 focus-visible:outline-offset-2', className)}
     >
@@ -45,10 +44,16 @@ export function Mascot({ className }: { className?: string }) {
   )
 }
 
-function hash(str: string): number {
-  let h = 2166136261
-  for (let i = 0; i < str.length; i++) h = Math.imul(h ^ str.charCodeAt(i), 16777619)
-  return h >>> 0
+/** Index for the n-th click: random-looking, never the same picture twice in a row. */
+function nth(seed: number, click: number, len: number): number {
+  if (len < 2) return 0
+  let i = seed % len
+  for (let k = 1; k <= click; k++) {
+    let h = Math.imul((seed + k) ^ 0x9e3779b9, 2654435761) >>> 0
+    h ^= h >>> 15
+    i = (i + 1 + (h % (len - 1))) % len
+  }
+  return i
 }
 
 const OUT = '#2a1f4a'

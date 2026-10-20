@@ -408,7 +408,7 @@ function MascotSettings() {
     void supabase.storage.from('media-assets').remove([path])
   }
   return (
-    <Field label="Sidebar mascot (desktop)" htmlFor="set-mascot" hint="Your own GIFs change at random on every page. Click the mascot for a spin.">
+    <Field label="Sidebar mascot (desktop)" htmlFor="set-mascot" hint="Click the mascot in the sidebar to switch to another one.">
       <div className="flex flex-col gap-3">
         <div className="flex flex-wrap items-center gap-2">
           <Select id="set-mascot" value={s.mascot} className="w-48" onValueChange={(v) => void saveSettings({ mascot: v as Settings['mascot'] })}
@@ -431,7 +431,7 @@ function MascotSettings() {
         {s.mascotPaths.length > 0 && (
           <label className="flex items-center gap-2 text-[13px]">
             <Switch checked={s.mascotRandom} onCheckedChange={(v) => void saveSettings({ mascot: 'custom', mascotRandom: v, mascotPick: s.mascotPick ?? s.mascotPaths[0] })} />
-            {s.mascotRandom ? 'Random one after every page change' : 'Always the same one — click a picture to choose'}
+            {s.mascotRandom ? 'Random — click the mascot in the sidebar for another one' : 'Always the same one — click a picture to choose'}
           </label>
         )}
         {s.mascotPaths.length > 0 && (
