@@ -27,7 +27,7 @@ import type { MediaCategory } from '@/types/db'
 import { backupToCsv, currentCounts, exportBackup, parseBackup, restoreBackup, type Backup } from './backup'
 import { readImportFile } from '@/features/imports/pipeline'
 import { ShareSettings } from '@/features/sharing/ShareSettings'
-import { saveSettings, SORT_OPTIONS, useSettings, type Settings } from './settings-store'
+import { saveSettings, SORT_OPTIONS, useSettings, useSettingsStore, type Settings } from './settings-store'
 
 function Section({ title, description, children }: { title: string; description?: string; children: ReactNode }) {
   return (
@@ -404,7 +404,7 @@ function MascotSettings() {
   }
   const remove = async (path: string) => {
     const rest = s.mascotPaths.filter((p) => p !== path)
-    await saveSettings({ mascotPaths: rest, ...(rest.length ? {} : { mascot: 'dancer' as const }) })
+    await saveSettings({ mascotPaths: rest, ...(s.mascotPick === path ? { mascotPick: rest[0] ?? null } : {}), ...(rest.length ? {} : { mascot: 'dancer' as const }) })
     void supabase.storage.from('media-assets').remove([path])
   }
   return (
@@ -418,11 +418,30 @@ function MascotSettings() {
             <input type="file" multiple accept="image/gif,image/webp,image/png" className="sr-only" onChange={(e) => { void upload(e.target.files); e.target.value = '' }} />
           </label>
         </div>
+        {s.mascot !== 'off' && (
+          <label className="flex items-center gap-3 text-[13px]">
+            <span className="w-10 text-fg-3">Size</span>
+            <input type="range" min={120} max={400} step={10} value={s.mascotSize} className="w-48 accent-[var(--accent)]"
+              onChange={(e) => useSettingsStore.setState({ settings: { ...s, mascotSize: Number(e.target.value) } })}
+              onPointerUp={(e) => void saveSettings({ mascotSize: Number((e.target as HTMLInputElement).value) })}
+              onKeyUp={(e) => void saveSettings({ mascotSize: Number((e.target as HTMLInputElement).value) })} aria-label="Mascot size" />
+            <span className="tabular-nums text-fg-3">{s.mascotSize}px</span>
+          </label>
+        )}
+        {s.mascotPaths.length > 0 && (
+          <label className="flex items-center gap-2 text-[13px]">
+            <Switch checked={s.mascotRandom} onCheckedChange={(v) => void saveSettings({ mascot: 'custom', mascotRandom: v, mascotPick: s.mascotPick ?? s.mascotPaths[0] })} />
+            {s.mascotRandom ? 'Random one after every page change' : 'Always the same one — click a picture to choose'}
+          </label>
+        )}
         {s.mascotPaths.length > 0 && (
           <ul className="flex flex-wrap gap-2">
             {s.mascotPaths.map((p) => (
-              <li key={p} className="group relative size-16 rounded-md border border-line bg-surface-2 p-1">
-                <img src={assetUrl(p) ?? ''} alt="" className="size-full object-contain" loading="lazy" />
+              <li key={p} className={`group relative size-16 rounded-md border bg-surface-2 p-1 ${!s.mascotRandom && s.mascotPick === p ? 'border-accent ring-2 ring-accent/50' : 'border-line'}`}>
+                <button type="button" className="size-full" aria-label="Use this mascot" disabled={s.mascotRandom}
+                  onClick={() => void saveSettings({ mascot: 'custom', mascotPick: p })}>
+                  <img src={assetUrl(p) ?? ''} alt="" className="size-full object-contain" loading="lazy" />
+                </button>
                 <button onClick={() => void remove(p)} aria-label="Remove mascot"
                   className="absolute -right-1.5 -top-1.5 hidden size-5 items-center justify-center rounded-full bg-danger text-[11px] text-white group-hover:flex">×</button>
               </li>

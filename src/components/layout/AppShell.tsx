@@ -75,7 +75,7 @@ function SidebarContent({ collapsed, onNavigate, onToggle }: { collapsed: boolea
         <NavGroup items={TOOLS} collapsed={collapsed} onNavigate={onNavigate} />
       </nav>
       {/* Desktop only, and only when there is room for it. */}
-      {!collapsed && !onNavigate && <Mascot className="hidden shrink-0 pb-1 pt-2 lg:block [@media(max-height:820px)]:hidden" />}
+      {!collapsed && !onNavigate && <Mascot className="hidden shrink-0 pb-1 pt-2 lg:block [@media(max-height:700px)]:hidden" />}
       {!collapsed && (
         <footer className="shrink-0 px-4 py-4 text-[11px] leading-relaxed text-fg-3">
           <div className="font-semibold tracking-wider text-fg-2">RUBAKA</div>
@@ -113,7 +113,8 @@ export function AppShell() {
   }, [])
 
   return (
-    <div className="flex h-dvh overflow-hidden">
+    // relative: absolutely positioned descendants (e.g. sr-only file inputs) stay inside and never make the window scroll.
+    <div className="relative flex h-dvh overflow-hidden">
       <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-2 focus:top-2 focus:z-50 focus:rounded focus:bg-accent focus:px-3 focus:py-1.5 focus:text-white">
         Skip to content
       </a>

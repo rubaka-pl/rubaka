@@ -24,18 +24,22 @@ export function Mascot({ className }: { className?: string }) {
   if (s.mascot === 'off') return null
   // location.key is a fresh random id on every navigation: hash it to pick one.
   const paths = s.mascotPaths
-  const pick = paths.length ? paths[hash(location.key + spin) % paths.length] : null
-  const custom = s.mascot === 'custom' && pick ? assetUrl(pick) : null
+  const fixed = !s.mascotRandom && s.mascotPick && paths.includes(s.mascotPick) ? s.mascotPick : null
+  const pick = fixed ?? (paths.length ? paths[hash(location.key + spin) % paths.length] : null)
+  // ?v= busts the year-long cache when mascots are re-encoded in place.
+  const custom = s.mascot === 'custom' && pick ? `${assetUrl(pick)}?v=2` : null
   return (
     <button
       type="button"
       onClick={() => setSpin((n) => n + 1)}
       aria-label="Mascot — click to spin"
       title="♪"
-      className={cn('group mx-auto block w-full max-w-[170px] cursor-pointer select-none px-3 focus-visible:outline-offset-2', className)}
+      className={cn('group mx-auto block w-full cursor-pointer select-none px-1 focus-visible:outline-offset-2', className)}
     >
-      <div key={spin} className={cn(spin > 0 && 'rbk-spin')}>
-        {custom ? <img src={custom} alt="" className="mx-auto max-h-[190px] w-auto object-contain drop-shadow-[0_8px_14px_rgb(0_0_0/0.45)]" draggable={false} /> : <Dancer />}
+      <div key={spin} className={cn('flex items-end justify-center', spin > 0 && 'rbk-spin')} style={{ height: s.mascotSize }}>
+        {custom
+          ? <img src={custom} alt="" className="max-h-full max-w-full object-contain" draggable={false} />
+          : <div className="h-full" style={{ width: s.mascotSize * (120 / 170) }}><Dancer /></div>}
       </div>
     </button>
   )
@@ -52,7 +56,7 @@ const SKIN = '#ffe6d8'
 
 function Dancer() {
   return (
-    <svg viewBox="0 0 120 170" className="rbk-dancer mx-auto h-auto w-full max-w-[150px] overflow-visible" aria-hidden>
+    <svg viewBox="0 0 120 170" className="rbk-dancer h-full w-full overflow-visible" aria-hidden>
       <defs>
         <linearGradient id="rbk-hair" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0" stopColor="#b9a2ff" />
