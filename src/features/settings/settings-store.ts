@@ -61,7 +61,7 @@ export const settingsSchema = z.object({
   /** true: a random mascot after every page change; false: always the one picked in Settings. */
   mascotRandom: z.boolean().catch(true).default(true),
   /** Mascot height in the sidebar, px. */
-  mascotSize: z.number().int().min(100).max(420).catch(240).default(240),
+  mascotSize: z.number().int().min(100).max(420).catch(280).default(280),
   /** The fixed mascot when mascotRandom is off. */
   mascotPick: z.string().nullable().catch(null).default(null),
 })

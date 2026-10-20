@@ -26,7 +26,7 @@ export function Mascot({ className }: { className?: string }) {
   const fixed = !s.mascotRandom && s.mascotPick && paths.includes(s.mascotPick) ? s.mascotPick : null
   const pick = fixed ?? (paths.length ? paths[nth(seed, spin, paths.length)] : null)
   // ?v= busts the year-long cache when mascots are re-encoded in place.
-  const custom = s.mascot === 'custom' && pick ? `${assetUrl(pick)}?v=2` : null
+  const custom = s.mascot === 'custom' && pick ? `${assetUrl(pick)}?v=3` : null
   return (
     <button
       type="button"
