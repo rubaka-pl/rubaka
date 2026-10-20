@@ -199,13 +199,18 @@ export async function getIgdbById(id: number): Promise<ProviderResult | null> {
  * IGDB "Time to Beat" (player-submitted, like HowLongToBeat): adds
  * details.time_to_beat_minutes from the "normally" value (falls back to "hastily").
  */
+/** Longest plausible "time to beat" (300 h); longer values are treated as unknown. */
+export const MAX_TTB_MINUTES = 300 * 60
+
 export async function withTimeToBeat(r: ProviderResult): Promise<ProviderResult> {
   if (r.provider !== 'igdb' || r.details?.time_to_beat_minutes) return r
   try {
     const ttb = await cached('igdb', `ttb:${r.externalId}`, async () =>
       (await invoke<{ normally?: number; hastily?: number }[]>('igdb', { endpoint: 'game_time_to_beats', query: `fields normally,hastily,completely; where game_id = ${Math.trunc(Number(r.externalId))};` }))[0] ?? {})
     const seconds = ttb.normally ?? ttb.hastily
-    return seconds ? { ...r, details: { ...r.details, time_to_beat_minutes: Math.round(seconds / 60) } } : r
+    // Endless / live games get absurd crowd-sourced values (SCP: 99,999 h): over 300 h counts as unknown.
+    const minutes = seconds ? Math.round(seconds / 60) : 0
+    return minutes > 0 && minutes <= MAX_TTB_MINUTES ? { ...r, details: { ...r.details, time_to_beat_minutes: minutes } } : r
   } catch {
     return r // time to beat is optional; never block enrichment on it
   }
