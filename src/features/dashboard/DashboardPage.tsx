@@ -25,6 +25,7 @@ import { posterSrc } from '@/lib/supabase'
 import { cn } from '@/lib/utils'
 import type { LibraryItem } from '@/types/db'
 import { activityText } from './activity-text'
+import { AiringCalendar } from './AiringCalendar'
 
 function useItems(key: string, params: LibraryParams) {
   return useQuery({ queryKey: ['library', 'dashboard', key, params], queryFn: () => fetchLibrary(params), staleTime: 20_000 })
@@ -56,7 +57,6 @@ export function DashboardPage() {
   const current = useCurrent()
   const added = useItems('added', { sort: 'added_desc', limit: 10 })
   const completed = useItems('completed', { statuses: ['completed'], sort: 'completed_desc', limit: 10 })
-  const wishlist = useItems('wishlist', { wishlist: true, sort: 'priority_desc', limit: 8 })
   const activity = useActivity(8)
   const isEmpty = summary.data?.every((c) => c.total === 0)
 
@@ -107,6 +107,11 @@ export function DashboardPage() {
             <Shelf query={current} empty="Nothing in progress. Start something from your wishlist!" size="lg" />
           </section>
 
+          <section aria-labelledby="airing-h">
+            <SectionHeader title={<span id="airing-h">Airing This Week</span>} />
+            <AiringCalendar />
+          </section>
+
           <div className="grid gap-7 xl:grid-cols-2">
             <section aria-labelledby="added-h">
               <SectionHeader title={<span id="added-h">Recently Added</span>} />
@@ -118,7 +123,7 @@ export function DashboardPage() {
             </section>
           </div>
 
-          <div className="grid gap-7 xl:grid-cols-[1fr_1.15fr]">
+          <div>
             <section aria-labelledby="activity-h">
               <SectionHeader title={<span id="activity-h">Your Activity</span>} action={<Link to="/stats" className="flex items-center text-xs text-accent hover:text-accent-hover">Statistics <ChevronRight className="size-3.5" /></Link>} />
               {activity.isError ? <ErrorState error={activity.error} onRetry={() => void activity.refetch()} /> : activity.isLoading ? (
@@ -146,37 +151,10 @@ export function DashboardPage() {
                 </ul>
               )}
             </section>
-            <section aria-labelledby="wish-h">
-              <SectionHeader title={<span id="wish-h">Wishlist Highlights</span>} />
-              {wishlist.isError ? <ErrorState error={wishlist.error} onRetry={() => void wishlist.refetch()} /> : !wishlist.isLoading && !wishlist.data?.items.length ? (
-                <EmptyState title="Wishlist is empty" description="Bookmark titles you want to get to next." className="py-8" />
-              ) : (
-                <div className="grid grid-cols-3 gap-3 sm:grid-cols-4">
-                  {(wishlist.data?.items ?? Array.from({ length: 4 }, () => null)).slice(0, 8).map((it, i) => it ? (
-                    <WishCard key={it.entry_id} item={it} />
-                  ) : <Skeleton key={i} className="aspect-[2/3]" />)}
-                </div>
-              )}
-            </section>
           </div>
         </>
       )}
     </PageContainer>
-  )
-}
-
-function WishCard({ item }: { item: LibraryItem }) {
-  const cfg = CATEGORY_CONFIG[item.category]
-  return (
-    <Link to={`/media/${item.media_id}`} className="group flex min-w-0 flex-col gap-1.5">
-      <div className="relative">
-        <PosterImage src={posterSrc(item)} title={item.title} category={item.category} className="transition-transform group-hover:-translate-y-0.5" />
-        <span className="absolute left-1.5 top-1.5 flex items-center gap-1 rounded bg-black/65 px-1.5 py-0.5 text-[10px] font-medium text-white">
-          <cfg.icon className="size-3" /> {cfg.singular}
-        </span>
-      </div>
-      <span className="line-clamp-2 text-[12px] font-semibold leading-tight group-hover:text-accent-hover">{item.title}</span>
-    </Link>
   )
 }
 
