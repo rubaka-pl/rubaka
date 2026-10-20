@@ -306,6 +306,8 @@ export interface FranchiseSummary {
   members: number
   completed: number
   in_progress: number
+  /** Related works (sequels, adaptations, …) that are not in the library yet. */
+  missing: number
   categories: MediaCategory[]
   posters: { poster_url: string | null; custom_poster_path: string | null; title: string }[]
   avg_rating: number | null
@@ -319,4 +321,15 @@ export interface ShareLink {
   show_ratings: boolean
   categories: MediaCategory[] | null
   created_at: string
+}
+
+/** Row of franchise_missing(): a related work that is not in the library. */
+export interface FranchiseMissing {
+  provider: string
+  external_id: string
+  title: string | null
+  category: MediaCategory | null
+  poster_url: string | null
+  relation_type: RelationType
+  via_title: string
 }

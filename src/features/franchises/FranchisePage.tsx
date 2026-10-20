@@ -24,6 +24,11 @@ import { posterSrc } from '@/lib/supabase'
 import type { LibraryItem } from '@/types/db'
 import { useFranchise, useFranchiseMutations } from './api'
 
+const RELATION_LABEL: Record<string, string> = {
+  sequel: 'Sequel', prequel: 'Prequel', parent: 'Main story', adaptation: 'Adaptation', source: 'Source',
+  side_story: 'Side story', spin_off: 'Spin-off', alternative: 'Alternative version', summary: 'Summary', character: 'Related', other: 'Related',
+}
+
 export function FranchisePage() {
   const { id } = useParams()
   const q = useFranchise(id)
@@ -40,8 +45,9 @@ export function FranchisePage() {
   if (q.isError) return <PageContainer><ErrorState error={q.error} onRetry={() => void q.refetch()} /></PageContainer>
   if (!q.data) return <PageContainer><EmptyState title="Franchise not found" action={<Button asChild><Link to="/franchises">All franchises</Link></Button>} /></PageContainer>
 
-  const { franchise, items } = q.data
+  const { franchise, items, missing } = q.data
   const completed = items.filter((i) => i.status === 'completed').length
+  const total = items.length + missing.length
   const rated = items.filter((i) => i.rating != null)
   const avg = rated.length ? Math.round((rated.reduce((a, i) => a + i.rating!, 0) / rated.length / 2) * 10) / 10 : null
   const byCat = CATEGORY_LIST.map((c) => ({ c, list: items.filter((i) => i.category === c.id) })).filter((g) => g.list.length)
@@ -70,15 +76,15 @@ export function FranchisePage() {
             </h1>
           )}
           <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-fg-2">
-            <span className="tabular-nums">{items.length} titles</span>
+            <span className="tabular-nums">{items.length} in library{missing.length ? ` · ${missing.length} not yet` : ''}</span>
             <span className="text-fg-3">·</span>
-            <span className="tabular-nums">{completed} completed</span>
+            <span className="tabular-nums">{completed} of {total} completed</span>
             {avg != null && <><span className="text-fg-3">·</span><span>avg ★ {avg}</span></>}
             {byCat.map(({ c, list }) => (
               <span key={c.id} className="inline-flex items-center gap-1 rounded bg-surface-2 px-1.5 py-0.5 text-[11px]"><c.icon className="size-3" />{c.label} {list.length}</span>
             ))}
           </div>
-          <ProgressBar ratio={items.length ? completed / items.length : 0} className="mt-3 max-w-md" label="Franchise completed" />
+          <ProgressBar ratio={total ? completed / total : 0} className="mt-3 max-w-md" label="Franchise completed" />
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <PerRowControl className="hidden sm:flex" />
@@ -107,6 +113,39 @@ export function FranchisePage() {
           </PosterGrid>
         </section>
       ))}
+
+      {missing.length > 0 && (
+        <section className="flex flex-col gap-3 rounded-xl border border-dashed border-line p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-[15px] font-semibold">Not in your library <span className="text-[12px] font-normal text-fg-3">{missing.length}</span></h2>
+            <Button size="sm" variant="secondary" disabled={m.addMissing.isPending}
+              onClick={async () => { for (const it of missing) await m.addMissing.mutateAsync({ franchiseId: franchise.id, item: it }).catch(() => {}) }}>
+              <Plus /> Add all to Planning
+            </Button>
+          </div>
+          <p className="-mt-1 text-[12px] text-fg-3">Sequels, prequels, adaptations and side stories (AniList, VNDB), the rest of a movie collection (TMDB) or game franchise (IGDB). Adding one may reveal more.</p>
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(250px,1fr))] gap-2.5">
+            {missing.map((it) => {
+              const cfg = it.category ? CATEGORY_CONFIG[it.category] : null
+              const href = it.provider === 'anilist' ? `https://anilist.co/${it.category === 'anime' ? 'anime' : 'manga'}/${it.external_id}` : it.provider === 'vndb' ? `https://vndb.org/${it.external_id}`
+                  : it.provider === 'tmdb_movie' ? `https://www.themoviedb.org/movie/${it.external_id}` : null
+              return (
+                <div key={`${it.provider}:${it.external_id}`} className="flex gap-3 rounded-lg border border-line bg-surface p-2">
+                  <a href={href ?? undefined} target="_blank" rel="noreferrer" className="w-12 shrink-0 opacity-80 hover:opacity-100">
+                    <PosterImage src={it.poster_url} title={it.title ?? ''} category={it.category ?? undefined} className="rounded" />
+                  </a>
+                  <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                    <div className="line-clamp-2 text-[13px] font-medium leading-tight">{it.title}</div>
+                    <div className="truncate text-[11px] text-fg-3">{cfg?.singular ?? it.provider} · {RELATION_LABEL[it.relation_type]} of {it.via_title}</div>
+                    <Button size="sm" variant="ghost" className="mt-auto self-start px-1.5" disabled={m.addMissing.isPending}
+                      onClick={() => m.addMissing.mutate({ franchiseId: franchise.id, item: it })}><Plus /> Add</Button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </section>
+      )}
 
       {addOpen && <AddTitlesDialog open={addOpen} onOpenChange={setAddOpen} franchiseId={franchise.id} members={items} />}
       <ConfirmDialog open={deleteOpen} onOpenChange={setDeleteOpen} destructive title={`Delete franchise “${franchise.name}”?`}

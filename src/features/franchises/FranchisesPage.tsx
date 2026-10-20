@@ -14,6 +14,7 @@ import { PageContainer } from '@/components/layout/AppShell'
 import { PosterImage } from '@/components/media/PosterImage'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/form-controls'
+import { Select } from '@/components/ui/select'
 import { EmptyState, ErrorState, ProgressBar, Skeleton } from '@/components/ui/misc'
 import { Dialog, DialogContent } from '@/components/ui/overlays'
 import { invalidateLibrary } from '@/features/tracking/api'
@@ -27,19 +28,25 @@ export function FranchisesPage() {
   const q = useFranchiseList()
   const qc = useQueryClient()
   const [search, setSearch] = useState('')
+  const [sort, setSort] = useState<'todo' | 'name' | 'size'>('todo')
   const [running, setRunning] = useState<string | null>(null)
   const [createOpen, setCreateOpen] = useState(false)
 
   const list = useMemo(() => {
     const term = search.trim().toLowerCase()
-    return (q.data ?? []).filter((f) => !term || f.name.toLowerCase().includes(term))
-  }, [q.data, search])
+    const left = (f: FranchiseSummary) => f.members + (f.missing ?? 0) - f.completed
+    return (q.data ?? []).filter((f) => !term || f.name.toLowerCase().includes(term)).sort((a, b) =>
+      sort === 'name' ? a.name.localeCompare(b.name)
+        : sort === 'size' ? b.members + (b.missing ?? 0) - (a.members + (a.missing ?? 0)) || a.name.localeCompare(b.name)
+          // Unfinished first: something in progress, then most left to watch/read/play.
+          : (b.in_progress > 0 ? 1 : 0) - (a.in_progress > 0 ? 1 : 0) || left(b) - left(a) || a.name.localeCompare(b.name))
+  }, [q.data, search, sort])
 
   const detect = async () => {
     setRunning('Starting…')
     try {
       const r = await detectFranchises((msg, done, total) => setRunning(total ? `${msg} ${done} / ${total}` : msg))
-      const found = [r.groups && `${r.groups} from relations`, r.movies && `${r.movies} movie collections`, r.games && `${r.games} game franchises`].filter(Boolean).join(', ')
+      const found = [r.groups && `${r.groups} from relations`, r.single && `${r.single} with unseen sequels`, r.movies && `${r.movies} movie collections`, r.games && `${r.games} game franchises`].filter(Boolean).join(', ')
       toast.success(found ? `Franchises: ${found}${r.added ? ` · ${r.added} titles grouped` : ''}` : 'No new franchises found')
     } catch (e) {
       toast.error(friendlyError(e))
@@ -64,9 +71,14 @@ export function FranchisesPage() {
       </header>
 
       {(q.data?.length ?? 0) > 8 && (
-        <div className="relative max-w-sm">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-fg-3" />
-          <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search franchises" className="pl-8" aria-label="Search franchises" />
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative w-full max-w-sm">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-fg-3" />
+            <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search franchises" className="pl-8" aria-label="Search franchises" />
+          </div>
+          <Select value={sort} onValueChange={(v) => setSort(v as typeof sort)} className="w-48" aria-label="Sort"
+            options={[{ value: 'todo', label: 'Unfinished first' }, { value: 'size', label: 'Biggest first' }, { value: 'name', label: 'Name A–Z' }]} />
+          <span className="text-[12px] text-fg-3">{list.length} franchises</span>
         </div>
       )}
 
@@ -113,10 +125,10 @@ function FranchiseCard({ f }: { f: FranchiseSummary }) {
         </div>
         <div className="mt-auto flex flex-col gap-1">
           <div className="flex items-center justify-between text-[11.5px] text-fg-3">
-            <span className="tabular-nums">{f.completed} / {f.members} completed{f.in_progress ? ` · ${f.in_progress} in progress` : ''}</span>
+            <span className="tabular-nums">{f.completed} / {f.members + (f.missing ?? 0)} completed{f.missing ? ` · +${f.missing} not added` : ''}</span>
             {f.avg_rating != null && <span className="inline-flex items-center gap-0.5 tabular-nums"><Star className="size-3 fill-rating text-rating" />{f.avg_rating}</span>}
           </div>
-          <ProgressBar ratio={f.members ? f.completed / f.members : 0} label={`${f.name} completed`} />
+          <ProgressBar ratio={f.completed / Math.max(1, f.members + (f.missing ?? 0))} label={`${f.name} completed`} />
         </div>
       </div>
     </Link>

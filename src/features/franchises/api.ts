@@ -8,9 +8,12 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { fetchLibrary, invalidateLibrary } from '@/features/tracking/api'
-import { getProxyStatus, invoke } from '@/integrations/proxied'
+import { getIgdbById, getProxyStatus, getTmdbMovie, invoke } from '@/integrations/proxied'
 import { friendlyError, supabase, unwrap } from '@/lib/supabase'
-import type { Franchise, FranchiseSummary, LibraryItem, MediaDetails } from '@/types/db'
+import { getAniListById } from '@/integrations/anilist'
+import { getVndbById } from '@/integrations/vndb'
+import { toEnrichmentPayload } from '@/integrations/types'
+import type { Franchise, FranchiseMissing, FranchiseSummary, LibraryItem, MediaDetails } from '@/types/db'
 
 export const franchiseKeys = {
   list: ['franchises'] as const,
@@ -25,7 +28,7 @@ export function useFranchiseList() {
   })
 }
 
-export interface FranchiseDetail { franchise: Franchise; items: LibraryItem[] }
+export interface FranchiseDetail { franchise: Franchise; items: LibraryItem[]; missing: FranchiseMissing[] }
 
 export function useFranchise(id: string | undefined) {
   return useQuery({
@@ -36,8 +39,11 @@ export function useFranchise(id: string | undefined) {
       if (!f) return null
       const rows = unwrap(await supabase.from('media').select('id, library_entries(id)').eq('franchise_id', id!), 'members') as { id: string; library_entries: { id: string }[] }[]
       const entryIds = rows.flatMap((r) => r.library_entries.map((e) => e.id))
-      const items = entryIds.length ? (await fetchLibrary({ entryIds, sort: 'release_asc', limit: 500 })).items : []
-      return { franchise: f, items }
+      const [items, missing] = await Promise.all([
+        entryIds.length ? fetchLibrary({ entryIds, sort: 'release_asc', limit: 500 }).then((r) => r.items) : Promise.resolve([]),
+        supabase.rpc('franchise_missing', { p_franchise: id! }).then((r) => (r.error ? [] : r.data) as FranchiseMissing[]),
+      ])
+      return { franchise: f, items, missing }
     },
   })
 }
@@ -86,7 +92,27 @@ export function useFranchiseMutations() {
     },
     onError, onSettled: () => invalidateFranchises(qc),
   })
-  return { setMember, create, rename, remove }
+  /** Add a related work from AniList / VNDB to the library (Planning) and to this franchise. */
+  const addMissing = useMutation({
+    mutationFn: async ({ franchiseId, item }: { franchiseId: string; item: FranchiseMissing }) => {
+      const r = item.provider === 'anilist' ? await getAniListById(Number(item.external_id))
+        : item.provider === 'vndb' ? await getVndbById(item.external_id)
+          : item.provider === 'tmdb_movie' ? await getTmdbMovie(Number(item.external_id))
+            : item.provider === 'igdb' ? await getIgdbById(Number(item.external_id)) : null
+      if (!r) throw new Error('Not found at the provider')
+      const p = toEnrichmentPayload(r)
+      const res = unwrap(await supabase.rpc('create_media_entry', {
+        p_media: { ...p.media, category: r.category, title: r.title }, p_entry: { status: 'planning' },
+        p_titles: p.titles, p_genres: p.genres, p_external_ids: p.external_ids, p_seasons: p.seasons,
+        p_relations: p.relations, p_is_custom: false, p_enriched: true,
+      }), 'add title') as { media_id: string }
+      await setMediaFranchise(res.media_id, franchiseId)
+      return r.title
+    },
+    onError, onSuccess: (title) => toast.success(`Added “${title}” to Planning`),
+    onSettled: () => invalidateFranchises(qc),
+  })
+  return { setMember, create, rename, remove, addMissing }
 }
 
 // ---------------------------------------------------------------- Detection
@@ -96,16 +122,22 @@ const collectionName = (n: string) => n.replace(/\s*[-–]?\s*(collection|кол
 /**
  * Finds franchises:
  *  1. relations between titles (AniList, VNDB, ...) — anime ↔ manga ↔ novels ↔ VNs;
- *  2. TMDB collections for movies;
- *  3. IGDB franchises / collections for games.
- * Provider answers are remembered in media.details, so later runs only ask about new titles.
+ *     a lone title with an unseen sequel / prequel becomes a franchise too;
+ *  2. TMDB collections for movies (with every part of the collection);
+ *  3. IGDB franchises / collections for games (with every game in them).
+ * Parts you do not have are stored as relations, so the franchise page lists
+ * them as "not in your library". Provider answers are remembered in
+ * media.details and groups are saved as they are found: an interrupted run
+ * continues where it stopped.
  */
 export async function detectFranchises(onProgress: (msg: string, done?: number, total?: number) => void) {
-  const summary = { groups: 0, added: 0, movies: 0, games: 0 }
+  const summary = { groups: 0, added: 0, movies: 0, games: 0, single: 0 }
   onProgress('Linking related titles…')
   const r = unwrap(await supabase.rpc('detect_franchises'), 'detect') as { groups: number; added: number }
   summary.groups += r.groups
   summary.added += r.added
+  const single = await supabase.rpc('detect_single_franchises')
+  if (!single.error) summary.single = single.data as number
 
   const status = (await getProxyStatus().catch(() => null)) ?? { tmdb: false, igdb: false }
   if (status.tmdb) summary.movies = await detectMovieCollections(onProgress)
@@ -113,7 +145,9 @@ export async function detectFranchises(onProgress: (msg: string, done?: number, 
   return summary
 }
 
+type Group = { id: number; name: string } | null
 type Row = { id: string; details: MediaDetails & Record<string, unknown>; media_external_ids: { provider: string; external_id: string }[] }
+type Part = { id: number; title: string; date: string | null; poster: string | null }
 
 async function loadWithIds(category: 'movie' | 'game', provider: string): Promise<Row[]> {
   const out: Row[] = []
@@ -131,22 +165,24 @@ async function saveDetail(row: Row, key: string, value: unknown) {
   unwrap(await supabase.from('media').update({ details: row.details }).eq('id', row.id), 'save details')
 }
 
-async function groupBy(rows: Row[], key: string, prefix: string): Promise<number> {
-  const groups = new Map<number, { name: string; ids: string[] }>()
-  for (const r of rows) {
-    const c = r.details?.[key] as { id: number; name: string } | null | undefined
-    if (!c) continue
-    const g = groups.get(c.id) ?? { name: collectionName(c.name), ids: [] }
-    g.ids.push(r.id)
-    groups.set(c.id, g)
-  }
-  let n = 0
-  for (const [id, g] of groups) {
-    if (g.ids.length < 2) continue
-    unwrap(await supabase.rpc('assign_franchise_group', { p_source: `${prefix}:${id}`, p_name: g.name, p_media_ids: g.ids }), 'group')
-    n++
-  }
-  return n
+/** Every title of the library that shares a group, as one franchise (saved right away). */
+async function assign(rows: Row[], key: string, prefix: string, g: { id: number; name: string }) {
+  const ids = rows.filter((r) => (r.details?.[key] as Group)?.id === g.id).map((r) => r.id)
+  if (ids.length) unwrap(await supabase.rpc('assign_franchise_group', { p_source: `${prefix}:${Math.abs(g.id)}`, p_name: collectionName(g.name), p_media_ids: ids }), 'group')
+}
+
+/** Store the group's other parts as relations of one member, so missing ones can be listed and added. */
+async function storeParts(rows: Row[], key: string, g: { id: number }, provider: 'tmdb_movie' | 'igdb', category: 'movie' | 'game', parts: Part[]) {
+  const host = rows.find((r) => (r.details?.[key] as Group)?.id === g.id)
+  if (!host) return
+  const own = Number(host.media_external_ids[0].external_id)
+  const ownDate = parts.find((p) => p.id === own)?.date ?? null
+  unwrap(await supabase.from('media_relations').delete().eq('media_id', host.id).eq('related_provider', provider), 'clear parts')
+  const rel = parts.filter((p) => p.id !== own).map((p) => ({
+    media_id: host.id, relation_type: ownDate && p.date && p.date < ownDate ? 'prequel' : 'sequel',
+    related_title: p.title, related_category: category, related_provider: provider, related_external_id: String(p.id), related_poster_url: p.poster,
+  }))
+  if (rel.length) unwrap(await supabase.from('media_relations').insert(rel), 'store parts')
 }
 
 async function detectMovieCollections(onProgress: (msg: string, done?: number, total?: number) => void): Promise<number> {
@@ -157,12 +193,34 @@ async function detectMovieCollections(onProgress: (msg: string, done?: number, t
     const id = todo[i].media_external_ids[0].external_id
     try {
       const m = await invoke<{ belongs_to_collection: { id: number; name: string } | null }>('tmdb', { path: `/movie/${Number(id)}` })
-      await saveDetail(todo[i], 'tmdb_collection', m.belongs_to_collection ? { id: m.belongs_to_collection.id, name: m.belongs_to_collection.name } : null)
+      const c = m.belongs_to_collection ? { id: m.belongs_to_collection.id, name: m.belongs_to_collection.name } : null
+      await saveDetail(todo[i], 'tmdb_collection', c)
+      if (c) await assign(rows, 'tmdb_collection', 'tmdb_collection', c)
     } catch (e) {
       console.warn('[rubaka] tmdb collection', id, e)
     }
   }
-  return groupBy(rows, 'tmdb_collection', 'tmdb_collection')
+  // Groups + every part of each collection (once per collection; remembered in details).
+  const groups = new Map<number, { id: number; name: string }>()
+  for (const r of rows) { const c = r.details?.tmdb_collection as Group; if (c) groups.set(c.id, c) }
+  let i = 0
+  for (const c of groups.values()) {
+    onProgress('Movies: collection parts…', i++, groups.size)
+    await assign(rows, 'tmdb_collection', 'tmdb_collection', c)
+    const host = rows.find((r) => (r.details?.tmdb_collection as Group)?.id === c.id)
+    if (!host || host.details?.tmdb_parts_at) continue
+    try {
+      const col = await invoke<{ parts: { id: number; title: string; release_date?: string; poster_path?: string | null }[] }>('tmdb', { path: `/collection/${c.id}` })
+      await storeParts(rows, 'tmdb_collection', c, 'tmdb_movie', 'movie', col.parts.map((p) => ({
+        id: p.id, title: p.title, date: p.release_date || null, poster: p.poster_path ? `https://image.tmdb.org/t/p/w185${p.poster_path}` : null,
+      })))
+      await saveDetail(host, 'tmdb_parts_at', new Date().toISOString())
+    } catch (e) {
+      // Older metadata-proxy without /collection: groups still work, parts come after redeploying it.
+      console.warn('[rubaka] tmdb collection parts', c.id, e)
+    }
+  }
+  return groups.size
 }
 
 async function detectGameFranchises(onProgress: (msg: string, done?: number, total?: number) => void): Promise<number> {
@@ -180,16 +238,33 @@ async function detectGameFranchises(onProgress: (msg: string, done?: number, tot
         const g = byId.get(Number(r.media_external_ids[0].external_id))
         const f = g?.franchise ?? g?.franchises?.[0]
         const c = g?.collections?.[0]
-        // Franchise ids and collection ids are different spaces: keep them apart in the key.
+        // Franchise ids and collection ids are different spaces: collections are stored negative.
         await saveDetail(r, 'igdb_franchise', f ? { id: f.id, name: f.name } : c ? { id: -c.id, name: c.name } : null)
       }
     } catch (e) {
       console.warn('[rubaka] igdb franchises', e)
     }
   }
-  // Negative ids are collections.
-  const fr = rows.filter((r) => ((r.details?.igdb_franchise as { id: number } | null)?.id ?? 0) > 0)
-  const col = rows.filter((r) => ((r.details?.igdb_franchise as { id: number } | null)?.id ?? 0) < 0)
-    .map((r) => ({ ...r, details: { ...r.details, igdb_franchise: { ...(r.details.igdb_franchise as object), id: -(r.details.igdb_franchise as { id: number }).id } } })) as Row[]
-  return (await groupBy(fr, 'igdb_franchise', 'igdb_franchise')) + (await groupBy(col, 'igdb_franchise', 'igdb_collection'))
+  const groups = new Map<number, { id: number; name: string }>()
+  for (const r of rows) { const g = r.details?.igdb_franchise as Group; if (g) groups.set(g.id, g) }
+  let i = 0
+  for (const g of groups.values()) {
+    onProgress('Games: franchise games…', i++, groups.size)
+    await assign(rows, 'igdb_franchise', g.id > 0 ? 'igdb_franchise' : 'igdb_collection', g)
+    const host = rows.find((r) => (r.details?.igdb_franchise as Group)?.id === g.id)
+    if (!host || host.details?.igdb_parts_at) continue
+    try {
+      const where = g.id > 0 ? `franchises = (${g.id}) | franchise = ${g.id}` : `collections = (${-g.id})`
+      const games = await invoke<{ id: number; name: string; first_release_date?: number; cover?: { image_id: string } }[]>(
+        'igdb', { endpoint: 'games', query: `fields id,name,first_release_date,cover.image_id; where (${where}) & game_type = (0,8,9,10); limit 100;` })
+      await storeParts(rows, 'igdb_franchise', g, 'igdb', 'game', games.map((x) => ({
+        id: x.id, title: x.name, date: x.first_release_date ? new Date(x.first_release_date * 1000).toISOString().slice(0, 10) : null,
+        poster: x.cover ? `https://images.igdb.com/igdb/image/upload/t_cover_big/${x.cover.image_id}.jpg` : null,
+      })))
+      await saveDetail(host, 'igdb_parts_at', new Date().toISOString())
+    } catch (e) {
+      console.warn('[rubaka] igdb franchise games', g.id, e)
+    }
+  }
+  return groups.size
 }

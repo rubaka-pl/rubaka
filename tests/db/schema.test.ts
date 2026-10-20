@@ -522,7 +522,7 @@ describe('franchises', () => {
     // External key (TMDB collection) groups movies; one title is not enough.
     const m1 = await addTitle(fresh, { category: 'movie', title: 'Harry Potter 1' })
     const m2 = await addTitle(fresh, { category: 'movie', title: 'Harry Potter 2' })
-    expect((await q<{ f: string | null }>(`select assign_franchise_group('tmdb_collection:1241', 'Harry Potter', array[$1]::uuid[]) f`, [m1.mediaId]))[0].f).toBeNull()
+    expect((await q<{ f: string | null }>(`select assign_franchise_group('tmdb_collection:1241', 'Harry Potter', array[]::uuid[]) f`))[0].f).toBeNull()
     const hp = (await q<{ f: string }>(`select assign_franchise_group('tmdb_collection:1241', 'Harry Potter', array[$1, $2]::uuid[]) f`, [m1.mediaId, m2.mediaId]))[0].f
     const again = (await q<{ f: string }>(`select assign_franchise_group('tmdb_collection:1241', 'Harry Potter', array[$1, $2]::uuid[]) f`, [m1.mediaId, m2.mediaId]))[0].f
     expect(again).toBe(hp)
@@ -571,4 +571,27 @@ describe('public share link', () => {
     await expect(as(fresh, 'anon', (tx) => tx.query(`select * from franchise_list()`))).rejects.toThrow(/permission denied/)
     await fresh.close()
   })
+})
+
+test('franchises list works you do not have; a lone title with an unseen sequel becomes a franchise', async () => {
+  const fresh = await createTestDb()
+  const q = async <T = Record<string, unknown>>(sql: string, p: unknown[] = []) => as(fresh, OWNER, async (tx) => (await tx.query<T>(sql, p)).rows)
+  const s1 = await addTitle(fresh, { category: 'anime', title: 'Show S1' }, { status: 'completed' })
+  const film = await addTitle(fresh, { category: 'anime', title: 'Unrelated film' })
+  // S1 → S2 (not in library), S1 → manga source (not in library), S1 → crossover (ignored)
+  await q(`insert into media_relations (media_id, relation_type, related_title, related_category, related_provider, related_external_id) values
+    ($1, 'sequel', 'Show S2', 'anime', 'anilist', '2'), ($1, 'source', 'Show manga', 'manga', 'anilist', '3'), ($1, 'character', 'Crossover', 'anime', 'anilist', '4')`, [s1.mediaId])
+  expect((await q<{ n: number }>(`select detect_single_franchises() n`))[0].n).toBe(1)
+  const fid = (await q<{ franchise_id: string }>(`select franchise_id from media where id = $1`, [s1.mediaId]))[0].franchise_id
+  expect(fid).toBeTruthy()
+  expect((await q<{ franchise_id: string | null }>(`select franchise_id from media where id = $1`, [film.mediaId]))[0].franchise_id).toBeNull()
+  const missing = await q<{ title: string }>(`select title from franchise_missing($1) order by title`, [fid])
+  expect(missing.map((m) => m.title)).toEqual(['Show S2', 'Show manga'])
+  const row = (await q<{ members: number; missing: number; completed: number }>(`select * from franchise_list()`))[0]
+  expect(row).toMatchObject({ members: 1, missing: 2, completed: 1 })
+  // Once S2 is in the library (same AniList id) it is no longer missing.
+  const s2 = await addTitle(fresh, { category: 'anime', title: 'Show S2' })
+  await q(`insert into media_external_ids (media_id, provider, external_id) values ($1, 'anilist', '2')`, [s2.mediaId])
+  expect((await q(`select * from franchise_missing($1)`, [fid])).length).toBe(1)
+  await fresh.close()
 })

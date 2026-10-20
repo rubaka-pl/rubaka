@@ -28,7 +28,7 @@ const CORS = {
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...CORS, 'Content-Type': 'application/json' } })
 
-const TMDB_PATH = /^\/(search\/(movie|tv|multi)|movie\/\d+|tv\/\d+|tv\/\d+\/season\/\d+|find\/tt\d+)$/
+const TMDB_PATH = /^\/(search\/(movie|tv|multi)|movie\/\d+|collection\/\d+|tv\/\d+|tv\/\d+\/season\/\d+|find\/tt\d+)$/
 const TMDB_PARAMS = new Set(['query', 'year', 'first_air_date_year', 'page', 'language', 'include_adult', 'append_to_response', 'external_source'])
 const IGDB_ENDPOINTS = new Set(['games', 'search', 'game_time_to_beats'])
 const MAL_PATH = /^\/(anime|manga)\/\d+$/
