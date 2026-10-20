@@ -27,7 +27,7 @@ export function getProxyStatus(force = false) {
 }
 
 const lastCall: Record<string, number> = {}
-export async function invoke<T>(provider: 'tmdb' | 'igdb' | 'mal', body: Record<string, unknown>): Promise<T> {
+export async function invoke<T>(provider: 'tmdb' | 'igdb' | 'mal' | 'nhentai', body: Record<string, unknown>): Promise<T> {
   const spacing = provider === 'tmdb' ? 260 : provider === 'mal' ? 1000 : 300
   for (let attempt = 0; attempt < 4; attempt++) {
     const wait = (lastCall[provider] ?? 0) + spacing - Date.now()

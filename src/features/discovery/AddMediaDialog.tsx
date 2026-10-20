@@ -28,6 +28,8 @@ import { buildStatusPatch } from '@/features/tracking/api'
 import { friendlyError, supabase, unwrap } from '@/lib/supabase'
 import { cn } from '@/lib/utils'
 import type { LibraryStatus, MediaCategory } from '@/types/db'
+import { getNhentaiGallery, nhentaiIdFromInput } from '@/integrations/nhentai'
+import type { NormalizedRecord } from '@/features/imports/types'
 import { CustomMediaForm } from './CustomMediaForm'
 
 export function AddMediaDialog({ open, onOpenChange, defaultCategory }: { open: boolean; onOpenChange: (o: boolean) => void; defaultCategory?: MediaCategory }) {
@@ -49,11 +51,13 @@ export function AddMediaDialog({ open, onOpenChange, defaultCategory }: { open: 
           </Field>
           <Tabs value={tab} onValueChange={setTab}>
             <TabsList>
-              <TabsTrigger value="search">Search online</TabsTrigger>
+              <TabsTrigger value="search">{category === 'doujinshi' ? 'nhentai link' : 'Search online'}</TabsTrigger>
               <TabsTrigger value="custom">Custom entry</TabsTrigger>
             </TabsList>
             <TabsContent value="search" className="pt-3">
-              <ExternalSearch key={category} category={category} onAdded={() => onOpenChange(false)} onCustom={() => setTab('custom')} />
+              {category === 'doujinshi'
+                ? <NhentaiLink onAdded={() => onOpenChange(false)} />
+                : <ExternalSearch key={category} category={category} onAdded={() => onOpenChange(false)} onCustom={() => setTab('custom')} />}
             </TabsContent>
             <TabsContent value="custom" className="pt-3">
               <CustomMediaForm key={category} category={category} onCreated={() => onOpenChange(false)} />
@@ -213,5 +217,85 @@ function ResultRow({ r, category, ownedMediaId, onAdded }: { r: ProviderResult; 
         </div>
       )}
     </li>
+  )
+}
+
+/** Paste an nhentai link (or id) → preview → add. The metadata comes from the same adapter as the favourites import. */
+function NhentaiLink({ onAdded }: { onAdded: () => void }) {
+  const [input, setInput] = useState('')
+  const [status, setStatus] = useState<LibraryStatus>('planning')
+  const [record, setRecord] = useState<NormalizedRecord | null>(null)
+  const [busy, setBusy] = useState<'load' | 'add' | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const blurAdult = useSettings().blurAdult
+  const navigate = useNavigate()
+  const qc = useQueryClient()
+
+  const load = async (value: string) => {
+    setRecord(null)
+    const id = nhentaiIdFromInput(value)
+    if (!id) { setError(value.trim() ? 'That does not look like an nhentai link (https://nhentai.net/g/123456/).' : null); return }
+    setError(null)
+    setBusy('load')
+    try {
+      setRecord(await getNhentaiGallery(id))
+    } catch (e) {
+      setError(friendlyError(e))
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const add = async () => {
+    if (!record) return
+    setBusy('add')
+    try {
+      const res = unwrap(await supabase.rpc('create_media_entry', {
+        p_media: record.media, p_entry: { status },
+        p_titles: record.titles, p_genres: record.genres, p_external_ids: record.external_ids,
+        p_seasons: [], p_relations: [], p_is_custom: false, p_enriched: true,
+      }), 'create media') as { media_id: string; existing: boolean }
+      invalidateLibrary(qc)
+      toast.success(res.existing ? `“${record.media.title}” was already in your library` : `Added “${record.media.title}”`, {
+        action: { label: 'Open', onClick: () => navigate(`/media/${res.media_id}`) },
+      })
+      onAdded()
+    } catch (e) {
+      toast.error(friendlyError(e))
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const details = record?.media.details as { pages?: number; artists?: string[]; groups?: string[] } | undefined
+  return (
+    <div className="flex flex-col gap-3">
+      <Input autoFocus value={input} aria-label="nhentai link" placeholder="https://nhentai.net/g/123456/"
+        onChange={(e) => { setInput(e.target.value); void load(e.target.value) }} />
+      {error && <p className="text-[13px] text-danger">{error}</p>}
+      {busy === 'load' && <Skeleton className="h-20" />}
+      {record && (
+        <div className="rounded-lg border border-accent/50 bg-surface-2/50 p-2">
+          <div className="flex gap-3">
+            <div className={cn('w-12 shrink-0', blurAdult && 'blur-sm')}><PosterImage src={record.media.poster_url} title={record.media.title} category="doujinshi" className="rounded" /></div>
+            <div className="min-w-0 flex-1">
+              <div className="font-semibold">{record.media.title}</div>
+              {record.media.original_title && <div className="truncate text-xs text-fg-3">{record.media.original_title}</div>}
+              <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-fg-3">
+                <Badge tone="danger">18+</Badge>
+                {details?.pages && <span>{details.pages} pages</span>}
+                {details?.artists?.length ? <span>{details.artists.join(', ')}</span> : null}
+                {details?.groups?.length ? <span>[{details.groups.join(', ')}]</span> : null}
+              </div>
+            </div>
+          </div>
+          <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-line pt-2">
+            <StatusSelect category="doujinshi" value={status} onChange={setStatus} className="w-40" />
+            <Button size="sm" variant="primary" className="ml-auto" loading={busy === 'add'} onClick={add}><Plus /> Add</Button>
+          </div>
+        </div>
+      )}
+      {!record && !error && busy !== 'load' && <p className="py-6 text-center text-[13px] text-fg-3">Paste an nhentai link or gallery number; nothing is added until you confirm.</p>}
+    </div>
   )
 }

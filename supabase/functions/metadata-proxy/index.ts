@@ -32,6 +32,7 @@ const TMDB_PATH = /^\/(search\/(movie|tv|multi)|movie\/\d+|collection\/\d+|tv\/\
 const TMDB_PARAMS = new Set(['query', 'year', 'first_air_date_year', 'page', 'language', 'include_adult', 'append_to_response', 'external_source'])
 const IGDB_ENDPOINTS = new Set(['games', 'search', 'game_time_to_beats'])
 const MAL_PATH = /^\/(anime|manga)\/\d+$/
+const NHENTAI_PATH = /^\/galleries\/\d{1,9}$/
 const MAL_FIELDS = /^[a-z_,{}]+$/
 
 let igdbToken: { value: string; expires: number } | null = null
@@ -112,6 +113,13 @@ Deno.serve(async (req) => {
       const fields = body.params?.fields ?? ''
       if (!body.path || !MAL_PATH.test(body.path) || !MAL_FIELDS.test(fields)) return json({ error: 'Request not allowed' }, 400)
       const res = await fetch(`https://api.myanimelist.net/v2${body.path}?fields=${fields}`, { headers: { 'X-MAL-CLIENT-ID': malClientId } })
+      return new Response(await res.text(), { status: res.status, headers: { ...CORS, 'Content-Type': 'application/json' } })
+    }
+
+    if (body.provider === 'nhentai') {
+      // Gallery metadata only (nhentai sends no CORS headers, so the browser cannot call it directly).
+      if (!body.path || !NHENTAI_PATH.test(body.path)) return json({ error: 'Request not allowed' }, 400)
+      const res = await fetch(`https://nhentai.net/api/v2${body.path}`, { headers: { 'User-Agent': 'Mozilla/5.0', Accept: 'application/json' } })
       return new Response(await res.text(), { status: res.status, headers: { ...CORS, 'Content-Type': 'application/json' } })
     }
 
