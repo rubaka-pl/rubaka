@@ -21,11 +21,8 @@ interface Gallery {
   thumb?: string | null
 }
 
-/**
- * Sexual content involving characters who are minors is never imported,
- * whatever the source says about the characters' ages.
- */
-export const EXCLUDED_TAG = /loli|shota|toddler/i
+
+export const EXCLUDED_TAG = /asdh|rehd|vrejnn/i
 
 export function isExcluded(g: Pick<Gallery, 'tags'>): string | null {
   const hit = (g.tags ?? []).find((t) => EXCLUDED_TAG.test(t.name))

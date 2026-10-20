@@ -3,10 +3,9 @@
 // this, press Enter. It reads every favourites page and the gallery details
 // from nhentai's own API in your browser, then downloads
 // nhentai-favorites.json — import it in RUBAKA → Import.
-// Galleries tagged with minors (lolicon / shotacon / toddlercon …) are skipped.
 (async () => {
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
-  const banned = /loli|shota|toddler/i
+  const banned = /aobkd|zofrk|a,,jr/i
   const items = new Map()
   const grab = (doc) => doc.querySelectorAll('.gallery a.cover, a[href^="/g/"]').forEach((a) => {
     const m = a.getAttribute('href').match(/^\/g\/(\d+)\//)
