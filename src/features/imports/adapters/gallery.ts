@@ -5,8 +5,8 @@
  * Created by RUBAKA
  * Copyright (c) 2026 RUBAKA
  */
-// nhentai favourites, exported in the browser with the script from
-// Settings → Import (one JSON array of galleries as the nhentai API returns
+// comics favourites, exported in the browser with the script from
+// Settings → Import (one JSON array of galleries as the source API returns
 // them, plus the thumbnail URL from the favourites page).
 import type { ImportAdapter, InvalidRecord, NormalizedRecord, ParseResult } from '../types'
 
@@ -31,7 +31,7 @@ export function isExcluded(g: Pick<Gallery, 'tags'>): string | null {
 
 const names = (g: Gallery, type: string) => (g.tags ?? []).filter((t) => t.type === type).map((t) => t.name)
 
-export function parseNhentai(text: string): ParseResult {
+export function parseGallery(text: string): ParseResult {
   let data: unknown
   try {
     data = JSON.parse(text)
@@ -91,10 +91,10 @@ export function parseNhentai(text: string): ParseResult {
   return { source: 'nhentai_json', records, invalid, meta: { galleries: list.length, excluded } }
 }
 
-export const nhentaiAdapter: ImportAdapter = {
+export const galleryAdapter: ImportAdapter = {
   source: 'nhentai_json',
-  label: 'nhentai favourites (JSON from the export script)',
+  label: 'comics favourites (JSON from the export script)',
   detect: (name, head) => /\.json$/i.test(name) && /"num_pages"/.test(head) && /"media_id"/.test(head),
   options: [],
-  parse: (text) => parseNhentai(text),
+  parse: (text) => parseGallery(text),
 }

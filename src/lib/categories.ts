@@ -67,7 +67,7 @@ export const CATEGORY_CONFIG: Record<MediaCategory, CategoryConfig> = {
     formats: [
       { value: 'manga', label: 'Manga' }, { value: 'manhwa', label: 'Manhwa' }, { value: 'manhua', label: 'Manhua' },
       { value: 'webtoon', label: 'Webtoon' }, { value: 'one_shot', label: 'One-shot' },
-      { value: 'doujinshi', label: 'Doujinshi' }, { value: 'other', label: 'Other' },
+      { value: 'doujinshi', label: 'Comics' }, { value: 'other', label: 'Other' },
     ],
   },
   novel: {
@@ -119,11 +119,11 @@ export const CATEGORY_CONFIG: Record<MediaCategory, CategoryConfig> = {
     ],
   },
   doujinshi: {
-    id: 'doujinshi', slug: 'doujinshi', label: 'Doujinshi', singular: 'Doujinshi', icon: BookHeart, adult: true,
+    id: 'doujinshi', slug: 'doujinshi', label: 'Comics', singular: 'Comics', icon: BookHeart, adult: true,
     progress: 'single', volumes: false, seasons: false, sessionType: 'reread',
     activeLabel: 'Reading', completedLabel: 'Read', planningLabel: 'Plan to Read', repeatLabel: 'Reread',
     formats: [
-      { value: 'doujinshi', label: 'Doujinshi' }, { value: 'one_shot', label: 'One-shot' },
+      { value: 'doujinshi', label: 'Comics' }, { value: 'one_shot', label: 'One-shot' },
       { value: 'artist_cg', label: 'Artist CG' }, { value: 'other', label: 'Other' },
     ],
   },

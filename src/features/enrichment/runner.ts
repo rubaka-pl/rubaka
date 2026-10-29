@@ -137,7 +137,7 @@ export async function findMetadata(m: MediaLite, ids: Pick<MediaExternalId, 'pro
       return pick.status === 'matched' ? { ...pick, result: await withTimeToBeat(pick.result) } : pick
     }
     case 'doujinshi':
-      return { status: 'unresolved', message: 'Doujinshi have no metadata provider' }
+      return { status: 'unresolved', message: 'Comics have no metadata provider' }
   }
 }
 

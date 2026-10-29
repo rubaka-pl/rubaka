@@ -28,7 +28,7 @@ import { buildStatusPatch } from '@/features/tracking/api'
 import { friendlyError, supabase, unwrap } from '@/lib/supabase'
 import { cn } from '@/lib/utils'
 import type { LibraryStatus, MediaCategory } from '@/types/db'
-import { getNhentaiGallery, nhentaiIdFromInput } from '@/integrations/nhentai'
+import { getGalleryRecord, galleryIdFromInput } from '@/integrations/gallery'
 import type { NormalizedRecord } from '@/features/imports/types'
 import { CustomMediaForm } from './CustomMediaForm'
 
@@ -51,12 +51,12 @@ export function AddMediaDialog({ open, onOpenChange, defaultCategory }: { open: 
           </Field>
           <Tabs value={tab} onValueChange={setTab}>
             <TabsList>
-              <TabsTrigger value="search">{category === 'doujinshi' ? 'nhentai link' : 'Search online'}</TabsTrigger>
+              <TabsTrigger value="search">{category === 'doujinshi' ? 'comic link' : 'Search online'}</TabsTrigger>
               <TabsTrigger value="custom">Custom entry</TabsTrigger>
             </TabsList>
             <TabsContent value="search" className="pt-3">
               {category === 'doujinshi'
-                ? <NhentaiLink onAdded={() => onOpenChange(false)} />
+                ? <GalleryLink onAdded={() => onOpenChange(false)} />
                 : <ExternalSearch key={category} category={category} onAdded={() => onOpenChange(false)} onCustom={() => setTab('custom')} />}
             </TabsContent>
             <TabsContent value="custom" className="pt-3">
@@ -220,8 +220,8 @@ function ResultRow({ r, category, ownedMediaId, onAdded }: { r: ProviderResult; 
   )
 }
 
-/** Paste an nhentai link (or id) → preview → add. The metadata comes from the same adapter as the favourites import. */
-function NhentaiLink({ onAdded }: { onAdded: () => void }) {
+/** Paste an comic link (or id) → preview → add. The metadata comes from the same adapter as the favourites import. */
+function GalleryLink({ onAdded }: { onAdded: () => void }) {
   const [input, setInput] = useState('')
   const [status, setStatus] = useState<LibraryStatus>('planning')
   const [record, setRecord] = useState<NormalizedRecord | null>(null)
@@ -233,12 +233,12 @@ function NhentaiLink({ onAdded }: { onAdded: () => void }) {
 
   const load = async (value: string) => {
     setRecord(null)
-    const id = nhentaiIdFromInput(value)
-    if (!id) { setError(value.trim() ? 'That does not look like an nhentai link (https://nhentai.net/g/123456/).' : null); return }
+    const id = galleryIdFromInput(value)
+    if (!id) { setError(value.trim() ? 'That does not look like an comic link (https://nhentai.net/g/123456/).' : null); return }
     setError(null)
     setBusy('load')
     try {
-      setRecord(await getNhentaiGallery(id))
+      setRecord(await getGalleryRecord(id))
     } catch (e) {
       setError(friendlyError(e))
     } finally {
@@ -270,7 +270,7 @@ function NhentaiLink({ onAdded }: { onAdded: () => void }) {
   const details = record?.media.details as { pages?: number; artists?: string[]; groups?: string[] } | undefined
   return (
     <div className="flex flex-col gap-3">
-      <Input autoFocus value={input} aria-label="nhentai link" placeholder="https://nhentai.net/g/123456/"
+      <Input autoFocus value={input} aria-label="comic link" placeholder="https://nhentai.net/g/123456/"
         onChange={(e) => { setInput(e.target.value); void load(e.target.value) }} />
       {error && <p className="text-[13px] text-danger">{error}</p>}
       {busy === 'load' && <Skeleton className="h-20" />}
@@ -295,7 +295,7 @@ function NhentaiLink({ onAdded }: { onAdded: () => void }) {
           </div>
         </div>
       )}
-      {!record && !error && busy !== 'load' && <p className="py-6 text-center text-[13px] text-fg-3">Paste an nhentai link or gallery number; nothing is added until you confirm.</p>}
+      {!record && !error && busy !== 'load' && <p className="py-6 text-center text-[13px] text-fg-3">Paste an comic link or gallery number; nothing is added until you confirm.</p>}
     </div>
   )
 }

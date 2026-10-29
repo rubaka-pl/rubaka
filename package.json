@@ -16,7 +16,7 @@
     "test:watch": "vitest",
     "test:db": "vitest run tests/db",
     "rubaka": "tsx --tsconfig tsconfig.app.json scripts/rubaka.ts",
-    "nh": "tsx --tsconfig tsconfig.app.json scripts/add-nhentai.ts"
+    "gal": "tsx --tsconfig tsconfig.app.json scripts/add-gallery.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.9.2",

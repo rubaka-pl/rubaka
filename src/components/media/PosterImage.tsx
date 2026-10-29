@@ -19,8 +19,8 @@ export function PosterImage({ src, title, category, className, eager, sizes }: {
   const failed = !!src && failedSrc === src
   const loaded = !!src && loadedSrc === src
   const Icon = category ? CATEGORY_CONFIG[category].icon : ImageOff
-  // 18+ categories (Doujinshi) stay blurred until hovered, unless turned off in Settings.
-  const blurAdult = useSettings().blurDoujinshi
+  // 18+ categories (Comics) stay blurred until hovered, unless turned off in Settings.
+  const blurAdult = useSettings().blurComics
   const blur = !!category && CATEGORY_CONFIG[category].adult === true && blurAdult
 
   return (

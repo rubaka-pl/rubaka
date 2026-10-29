@@ -1,8 +1,8 @@
-// RUBAKA — export your nhentai favourites for Import (Doujinshi).
+// RUBAKA — export your comics favourites for Import (Comics).
 // Open https://nhentai.net/favorites/ (signed in), press F12 → Console, paste
 // this, press Enter. It reads every favourites page and the gallery details
-// from nhentai's own API in your browser, then downloads
-// nhentai-favorites.json — import it in RUBAKA → Import.
+// from the site's own API in your browser, then downloads
+// gallery-favorites.json — import it in RUBAKA → Import.
 (async () => {
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
   const banned = /aobkd|zofrk|a,,jr/i
@@ -43,7 +43,7 @@
   }
   const a = document.createElement('a')
   a.href = URL.createObjectURL(new Blob([JSON.stringify(out)], { type: 'application/json' }))
-  a.download = 'nhentai-favorites.json'
+  a.download = 'gallery-favorites.json'
   a.click()
   console.log(`Done: ${out.length} galleries saved${skipped ? `, ${skipped} skipped (minors)` : ''}.`)
 })()
