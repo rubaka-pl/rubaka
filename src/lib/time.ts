@@ -23,6 +23,11 @@ export function estimatedMinutes(m: M, e: E): number | null {
       const len = Number(m.details?.length_minutes)
       return len > 0 ? (done + e.repeat_count) * len : null
     }
+    // Doujinshi: ~0.5 min per page (see migration 16).
+    case 'doujinshi': {
+      const pages = Number(m.details?.pages)
+      return pages > 0 ? Math.round((done + e.repeat_count) * pages * 0.5) || null : null
+    }
     // Reading estimates (see migration 10): manga chapter ≈ 9.23 min (matches MAL "Days"),
     // novel volume ≈ 210 min, novel chapter ≈ 15 min when no volumes are tracked.
     case 'manga':

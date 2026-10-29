@@ -91,8 +91,6 @@ export function DashboardPage() {
                   <div className="mt-2 text-xs text-fg-2">{cfg.label}</div>
                   <div className="text-xl font-bold tabular-nums leading-tight">{c.total.toLocaleString()}</div>
                   <div className="text-[11px] text-fg-3">{cfg.activeLabel} {c.active}</div>
-                  {/* Share of the category that is completed. */}
-                  <ProgressBar ratio={c.total ? c.completed / c.total : 0} className="mt-2 h-[3px]" label={`${cfg.label}: ${c.completed} of ${c.total} completed`} />
                 </Link>
               )
             })}
